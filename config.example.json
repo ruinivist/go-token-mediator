@@ -1,0 +1,30 @@
+{
+  "port": 8080,
+  "frontend_origin_url": "http://localhost:3000",
+  "frontend_completion_url": "http://localhost:3000/oauth/complete",
+  "providers": {
+    "github": {
+      "client_id": "dummy_github_client_id",
+      "client_secret": "dummy_github_client_secret",
+      "auth_url": "https://github.com/login/oauth/authorize",
+      "token_url": "https://github.com/login/oauth/access_token",
+      "callback_url": "http://localhost:8080/oauth/github/callback",
+      "scopes": [
+        "read:user",
+        "user:email"
+      ]
+    },
+    "google": {
+      "client_id": "dummy_google_client_id",
+      "client_secret": "dummy_google_client_secret",
+      "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+      "token_url": "https://oauth2.googleapis.com/token",
+      "callback_url": "http://localhost:8080/oauth/google/callback",
+      "scopes": [
+        "openid",
+        "email",
+        "profile"
+      ]
+    }
+  }
+}
