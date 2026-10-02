@@ -10,6 +10,7 @@ import (
 // ==== models =====
 
 type Config struct {
+	Host         string                    `json:"host"`
 	Port         int                       `json:"port"`
 	FeOrigin     string                    `json:"frontend_origin_url"`
 	FeCompletion string                    `json:"frontend_completion_url"`

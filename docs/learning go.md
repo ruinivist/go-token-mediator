@@ -1,3 +1,6 @@
 - `errors.New` or `fmt.Errorf`? fmt one is only used when you need formatting, atleast that's the convention
 - tests don't support doing an error wrap with "%w"
 - standard test naming convention is "TestTarget_Scenario"
+- panics => never use generally, there are better options
+- `log.Panicf` will execute defers and and prints stack trace
+- `log.Fatalf` will not execute defers, it calls `ox.Exit(1)` internally

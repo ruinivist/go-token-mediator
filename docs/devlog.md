@@ -96,3 +96,14 @@ All we need would be 4 models.
 - Session is created at start and stored pending auth state ( latest )
   and list of connections
 - connections is just the actual tokens / refresh token etc
+
+> above was primarily done in `session_store.go`, basic crud and models + cleanup worker for expired tokens
+
+## http server
+
+just adding a health endpoint for now
+
+## `oauth/{provider}/start`
+
+for state we can re-use the same string generation as it's for session id.
+so just pkce needs to be implemented along with the api server.
