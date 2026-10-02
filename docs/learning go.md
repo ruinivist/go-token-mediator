@@ -1,2 +1,3 @@
 - `errors.New` or `fmt.Errorf`? fmt one is only used when you need formatting, atleast that's the convention
 - tests don't support doing an error wrap with "%w"
+- standard test naming convention is "TestTarget_Scenario"

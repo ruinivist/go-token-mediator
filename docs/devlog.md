@@ -32,3 +32,67 @@ Per provider
 - token url
 - callback url ( what the providers redirects to, my backend )
 - scopes
+
+## session model - what do we store?
+
+Reference for response: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps
+
+GH supports both expiring and non-expiring models.
+A non-expiring response.
+
+```json
+{
+  "access_token": "gho_16C7e42F292c6912E7710c838347Ae178B4a",
+  "token_type": "bearer",
+  "scope": "repo,gist"
+}
+```
+
+Expiring
+
+```json
+{
+  "access_token": "gho_16C7e42F292c6912E7710c838347Ae178B4a",
+  "token_type": "bearer",
+  "scope": "repo,gist",
+  "expires_in": 28800,
+  "refresh_token": "ghr_1B4a2e77838347a7E420ce178F2E7c6912...",
+  "refresh_token_expires_in": 15897600
+}
+```
+
+Error ( with 200 OK )
+
+```json
+{
+  "error": "bad_verification_code",
+  "error_description": "The code passed is incorrect or has expired.",
+  "error_uri": "https://docs.github.com/..."
+}
+```
+
+To handle both we need atleast a common model as "ProviderTokenResponse"
+that handles both expiring and non-expiring in one.
+
+Ofc for the client side, session state, another model is needed too.
+
+Let's start in order. At the first /oauth/provider/start,
+I need to send back the provider oauth url build in full.
+So state, code_challenege and code_challenge_method, a list of scopes,
+response_type=code ( fixed ), client id and redirect uri.
+
+All 7 are standard in the spec.
+
+Why the redirect uri? A provider still checks, does not trust blindly. This is
+just to filter in case provider allows for multiple redirect uris to be
+registered ( an app can have an app specific one ).
+
+But not all of this needs to be maintained forever. A lot many are straight
+from the config or fixed for our model
+
+All we need would be 4 models.
+
+- a map of "session id" strings -> Sessions
+- Session is created at start and stored pending auth state ( latest )
+  and list of connections
+- connections is just the actual tokens / refresh token etc
