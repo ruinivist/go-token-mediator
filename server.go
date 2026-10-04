@@ -71,6 +71,7 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("POST /oauth/{provider}/start", s.providerOAuthStart)
 	return mux
 }
 
@@ -82,4 +83,66 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(HealthResponse{Status: "ok"})
+}
+
+// ==== session cookie helpers ====
+
+const sessionCookieName = "__Host-oauth_bridge"
+
+func setSessionCookie(w http.ResponseWriter, id SessionId) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    string(id),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
+	providerName := r.PathValue("provider")
+	p, ok := s.cfg.Providers[providerName]
+	if !ok {
+		http.Error(w, "unknown provider", http.StatusNotFound)
+		return
+	}
+
+	var cookieID SessionId
+	if c, err := r.Cookie(sessionCookieName); err == nil {
+		cookieID = SessionId(c.Value)
+	}
+
+	sess, created, err := s.store.GetOrCreate(cookieID, 24*time.Hour)
+	if err != nil {
+		http.Error(w, "failed to create session", http.StatusInternalServerError)
+		return
+	}
+	if created {
+		setSessionCookie(w, sess.ID)
+	}
+
+	state, err := GenerateRandomString(32)
+	if err != nil {
+		http.Error(w, "failed to generate state", http.StatusInternalServerError)
+		return
+	}
+
+	verifier, challenge, err := GeneratePKCE()
+	if err != nil {
+		http.Error(w, "failed to generate pkce", http.StatusInternalServerError)
+		return
+	}
+
+	sess.PendingAuth = &PendingAuth{
+		Provider:     providerName,
+		State:        state,
+		PKCEVerifier: verifier,
+		CreatedAt:    time.Now(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"authorization_url": p.BuildAuthUrl(state, challenge),
+	})
 }

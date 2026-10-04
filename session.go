@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -59,7 +56,7 @@ func NewSessionStore() *SessionStore {
 
 // Add a new session with certain lifetime
 func (s *SessionStore) Create(lifetime time.Duration) (*Session, error) {
-	id, err := generateRandomString(32)
+	id, err := GenerateRandomString(32)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +92,22 @@ func (s *SessionStore) Get(id SessionId) (*Session, bool) {
 	}
 
 	return sess, true
+}
+
+// GetOrCreate returns an existing active session or creates a new one.
+// The boolean reports true if a new session was created.
+func (s *SessionStore) GetOrCreate(id SessionId, lifetime time.Duration) (*Session, bool, error) {
+	if id != "" {
+		if sess, ok := s.Get(id); ok {
+			return sess, false, nil
+		}
+	}
+
+	newSess, err := s.Create(lifetime)
+	if err != nil {
+		return nil, false, err
+	}
+	return newSess, true, nil
 }
 
 // background worker for periodic cleanup of expired sessions
@@ -136,17 +149,4 @@ func (s *SessionStore) Delete(id SessionId) {
 	defer s.mtx.Unlock()
 
 	delete(s.sessions, id)
-}
-
-// ==== helper functions ====
-
-// base64 url encoded string of nBytes bytes
-func generateRandomString(nBytes int) (string, error) {
-	b := make([]byte, nBytes)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to read random bytes, err = %w", err)
-	}
-
-	encoded := base64.RawURLEncoding.EncodeToString(b)
-	return encoded, nil
 }

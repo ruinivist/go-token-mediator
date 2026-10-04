@@ -106,4 +106,5 @@ just adding a health endpoint for now
 ## `oauth/{provider}/start`
 
 for state we can re-use the same string generation as it's for session id.
-so just pkce needs to be implemented along with the api server.
+so just pkce needs to be implemented along with the api server,
+and that is just hashing my random secret to get code challenge.

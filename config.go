@@ -22,7 +22,7 @@ type ProviderConfig struct {
 	ClientSecret string   `json:"client_secret"`
 	AuthUrl      string   `json:"auth_url"`
 	TokenUrl     string   `json:"token_url"`
-	CallbackUrl  string   `json:"callback_url"`
+	RedirectUrl  string   `json:"redirect_url"`
 	Scopes       []string `json:"scopes"`
 }
 
@@ -71,7 +71,7 @@ func validate(c *Config) error {
 		if p.ClientId == "" || p.ClientSecret == "" {
 			return fmt.Errorf("provider %q missing credentials", name)
 		}
-		if p.AuthUrl == "" || p.TokenUrl == "" || p.CallbackUrl == "" {
+		if p.AuthUrl == "" || p.TokenUrl == "" || p.RedirectUrl == "" {
 			return fmt.Errorf("provider %q missing URLs", name)
 		}
 	}
