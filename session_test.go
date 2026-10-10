@@ -46,7 +46,7 @@ func TestSessionStore_Cleanup(t *testing.T) {
 	store.mtx.RLock()
 	defer store.mtx.RUnlock()
 
-	_, exists := store.sessions[sess.ID]
+	_, exists := store._session[sess.ID]
 
 	if exists {
 		t.Fatalf("cleanup failed to delete expired session")
@@ -69,3 +69,38 @@ func TestSessionStore_GetOrCreate(t *testing.T) {
 	}
 }
 
+func TestSessionStore_OAuthStateTransitions(t *testing.T) {
+	store := NewSessionStore()
+	sess, err := store.Create(time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pending := PendingAuth{
+		Provider:     "github",
+		State:        "state",
+		PKCEVerifier: "verifier",
+		CreatedAt:    time.Now(),
+	}
+	if !store.SetPendingAuth(sess.ID, pending) {
+		t.Fatal("failed to save pending auth")
+	}
+	if _, ok := store.ConsumePendingAuth(sess.ID, "github", "wrong-state"); ok {
+		t.Fatal("consumed pending auth with wrong state")
+	}
+	got, ok := store.ConsumePendingAuth(sess.ID, "github", "state")
+	if !ok || got.PKCEVerifier != pending.PKCEVerifier {
+		t.Fatal("failed to consume valid pending auth")
+	}
+	if _, ok := store.ConsumePendingAuth(sess.ID, "github", "state"); ok {
+		t.Fatal("consumed pending auth more than once")
+	}
+
+	connection := Connection{Provider: "github", AccessToken: "token"}
+	if !store.SaveConnection(sess.ID, connection) {
+		t.Fatal("failed to save connection")
+	}
+	if sess.Connections["github"].AccessToken != connection.AccessToken {
+		t.Fatal("saved connection did not match")
+	}
+}

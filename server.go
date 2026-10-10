@@ -134,11 +134,14 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess.PendingAuth = &PendingAuth{
+	if !s.store.SetPendingAuth(sess.ID, PendingAuth{
 		Provider:     providerName,
 		State:        state,
 		PKCEVerifier: verifier,
 		CreatedAt:    time.Now(),
+	}) {
+		http.Error(w, "invalid session", http.StatusBadRequest)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")

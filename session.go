@@ -13,7 +13,7 @@ type SessionId string
 // global session state for all users
 type SessionStore struct {
 	mtx      sync.RWMutex
-	sessions map[SessionId]*Session
+	_session map[SessionId]*Session
 }
 
 // main state for per user session details
@@ -50,9 +50,13 @@ type Connection struct {
 // Make a new session store, expected to be used as a singleton
 func NewSessionStore() *SessionStore {
 	return &SessionStore{
-		sessions: make(map[SessionId]*Session),
+		_session: make(map[SessionId]*Session),
 	}
 }
+
+// TODO: Move SessionStore into its own package to enforce access boundaries.
+// TODO: Create, Get, and GetOrCreate return live *Session pointers that let callers bypass the store lock.
+// Return IDs/existence results instead, and copy connection values under RLock when reads are needed.
 
 // Add a new session with certain lifetime
 func (s *SessionStore) Create(lifetime time.Duration) (*Session, error) {
@@ -70,7 +74,7 @@ func (s *SessionStore) Create(lifetime time.Duration) (*Session, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	s.sessions[session.ID] = session
+	s._session[session.ID] = session
 	return session, nil
 }
 
@@ -81,7 +85,7 @@ func (s *SessionStore) Get(id SessionId) (*Session, bool) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
-	sess, ok := s.sessions[id]
+	sess, ok := s._session[id]
 	if !ok {
 		return nil, false
 	}
@@ -92,6 +96,55 @@ func (s *SessionStore) Get(id SessionId) (*Session, bool) {
 	}
 
 	return sess, true
+}
+
+// these funcs below are added to modify session store, it's easy to forget to do it under
+// lock hence session store's internal map was makde private
+
+// SetPendingAuth replaces the session's pending OAuth flow.
+func (s *SessionStore) SetPendingAuth(id SessionId, pending PendingAuth) bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	sess, ok := s._session[id]
+	if !ok || time.Now().After(sess.ExpiresAt) {
+		return false
+	}
+	sess.PendingAuth = &pending
+	return true
+}
+
+// ConsumePendingAuth validates and removes a pending OAuth flow atomically.
+func (s *SessionStore) ConsumePendingAuth(id SessionId, provider, state string) (*PendingAuth, bool) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	sess, ok := s._session[id]
+	if !ok || time.Now().After(sess.ExpiresAt) || sess.PendingAuth == nil {
+		return nil, false
+	}
+
+	pending := sess.PendingAuth
+	if pending.Provider != provider || pending.State != state || time.Since(pending.CreatedAt) > 10*time.Minute {
+		return nil, false
+	}
+
+	sess.PendingAuth = nil
+	copy := *pending
+	return &copy, true
+}
+
+// SaveConnection stores a provider connection in an active session.
+func (s *SessionStore) SaveConnection(id SessionId, connection Connection) bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	sess, ok := s._session[id]
+	if !ok || time.Now().After(sess.ExpiresAt) {
+		return false
+	}
+	sess.Connections[connection.Provider] = &connection
+	return true
 }
 
 // GetOrCreate returns an existing active session or creates a new one.
@@ -134,11 +187,11 @@ func (s *SessionStore) cleanupExpired() {
 	defer s.mtx.Unlock()
 
 	now := time.Now()
-	for id, sess := range s.sessions {
+	for id, sess := range s._session {
 		if now.After(sess.ExpiresAt) {
 			// this delete while iteration is perfectly valid in go, unlike
 			// some other langs
-			delete(s.sessions, id)
+			delete(s._session, id)
 		}
 	}
 }
@@ -148,5 +201,5 @@ func (s *SessionStore) Delete(id SessionId) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	delete(s.sessions, id)
+	delete(s._session, id)
 }
