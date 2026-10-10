@@ -108,3 +108,43 @@ just adding a health endpoint for now
 for state we can re-use the same string generation as it's for session id.
 so just pkce needs to be implemented along with the api server,
 and that is just hashing my random secret to get code challenge.
+
+## `oauth/{provider}/callback`
+
+Gh would redirect back with a code and state to my backend ( <- is partly correct ). This is what
+the full flow looks like, I was misunderstanding redirects.
+
+1. GitHub -> Browser: "Go to http://mybackend:8080/oauth/github/callback?code=C" (302)
+
+2. Browser -> Go: GET /oauth/github/callback?code=C
+
+3. Go -> GitHub API: POST /login/oauth/access_token (Go exchanges code for tokens)
+   [Takes ~50ms]
+
+4. GitHub -> Go: Here are your access_token and refresh_token!
+   [Go saves tokens into session memory]
+
+5. Go -> Browser: "All done! Now go to http://localhost:3000/completion" (302)
+   (Go finally answers the waiting browser from step 2)
+
+6. Browser -> Frontend: Browser loads http://localhost:3000/completion
+
+Why wait before redirecting to completion? technically you could fetch the access tokens in
+parallel but this will needlessly introduce a race condition for no real gain.
+
+### how to test with a locally mocked server?
+
+go has `httptest`, now that we are talking to github endpoint, it's good
+from a testing and even for dev to have a test server that does acts as
+github for me.
+
+A quick guide of httptest, it makes a server that lives just for the test.
+Idea being that it's for mocking outgoing requests to other external apis.
+Note that recorder is for incoming requests to my endpoints and is in memory
+while an httptest server would make an actual local server.
+
+---
+
+I had been consulting the RFC on this more and more, a well written one which this is, really
+has everything define explicitly, have also put in comments the relevant sections as and when
+I encounter those or had to refer RFC.

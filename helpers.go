@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 )
 
 // base64 url encoded string of nBytes bytes
@@ -40,4 +41,19 @@ func GeneratePKCE() (verifier, challenge string, err error) {
 	// code_challenge = BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))
 	// which is why we sha265 the verifier AFTER encoding ( as that's the )
 	// ascii that the provider would see
+}
+
+const sessionCookieName = "__Host-oauth_bridge"
+
+// writes the cookies to http response
+func setSessionCookie(w http.ResponseWriter, id SessionId) {
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    string(id),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
