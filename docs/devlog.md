@@ -148,3 +148,10 @@ while an httptest server would make an actual local server.
 I had been consulting the RFC on this more and more, a well written one which this is, really
 has everything define explicitly, have also put in comments the relevant sections as and when
 I encounter those or had to refer RFC.
+
+## Refactoring session to internal
+
+While implementing I found myself using the sessions internal map that should be read under a lock
+multiple times, not to mention that I was retuning pointers to those internal session structs.
+I wanted to make the map private and then stop returning pointers and instead switch to all read
+writes going via the session store using session id instead so that there is never a race error.

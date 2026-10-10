@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+
+	"token-mediator/internal/session"
 )
 
 // base64 url encoded string of nBytes bytes
@@ -46,7 +48,7 @@ func GeneratePKCE() (verifier, challenge string, err error) {
 const sessionCookieName = "__Host-oauth_bridge"
 
 // writes the cookies to http response
-func setSessionCookie(w http.ResponseWriter, id SessionId) {
+func setSessionCookie(w http.ResponseWriter, id session.ID) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,

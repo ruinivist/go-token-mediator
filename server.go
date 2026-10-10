@@ -8,17 +8,19 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"token-mediator/internal/session"
 )
 
 // ==== server creation ====
 
 type Server struct {
 	cfg        *Config
-	store      *SessionStore
+	store      *session.Store
 	httpServer *http.Server
 }
 
-func NewServer(cfg *Config, store *SessionStore) *Server {
+func NewServer(cfg *Config, store *session.Store) *Server {
 	s := &Server{
 		cfg:   cfg,
 		store: store,
@@ -97,18 +99,18 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var cookieID SessionId
+	var cookieID session.ID
 	if c, err := r.Cookie(sessionCookieName); err == nil {
-		cookieID = SessionId(c.Value)
+		cookieID = session.ID(c.Value)
 	}
 
-	sess, created, err := s.store.GetOrCreate(cookieID, 24*time.Hour)
+	sessionID, created, err := s.store.GetOrCreate(cookieID, 24*time.Hour)
 	if err != nil {
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
 		return
 	}
 	if created {
-		setSessionCookie(w, sess.ID)
+		setSessionCookie(w, sessionID)
 	}
 
 	state, err := GenerateRandomString(32)
@@ -123,7 +125,7 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.store.SetPendingAuth(sess.ID, PendingAuth{
+	if !s.store.SetPendingAuth(sessionID, session.PendingAuth{
 		Provider:     providerName,
 		State:        state,
 		PKCEVerifier: verifier,
@@ -154,7 +156,7 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "request missing cookie", http.StatusBadRequest)
 		return
 	}
-	sessId := SessionId(c.Value)
+	sessId := session.ID(c.Value)
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
@@ -179,7 +181,7 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn := &Connection{
+	conn := &session.Connection{
 		Provider:     providerName,
 		AccessToken:  resp.AccessToken,
 		RefreshToken: resp.RefreshToken,

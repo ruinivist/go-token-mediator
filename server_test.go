@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"token-mediator/internal/session"
 )
 
 func TestServer_Health(t *testing.T) {
@@ -12,7 +14,7 @@ func TestServer_Health(t *testing.T) {
 		t.Fatalf("failed to load fixture config: %v", err)
 	}
 
-	store := NewSessionStore()
+	store := session.NewStore()
 	srv := NewServer(cfg, store)
 
 	// Simulate GET /health request

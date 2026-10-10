@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"token-mediator/internal/session"
 )
 
 func main() {
@@ -27,7 +29,7 @@ func main() {
 	defer stop()
 
 	// sesison store
-	store := NewSessionStore()
+	store := session.NewStore()
 	store.StartCleanupWorker(ctx, 10*time.Minute)
 
 	// server
