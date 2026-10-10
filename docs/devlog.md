@@ -155,3 +155,9 @@ While implementing I found myself using the sessions internal map that should be
 multiple times, not to mention that I was retuning pointers to those internal session structs.
 I wanted to make the map private and then stop returning pointers and instead switch to all read
 writes going via the session store using session id instead so that there is never a race error.
+
+## Mocking an OAuth server to running tests on flows
+
+I wasn't very keen on writign it myself so let codex handle it.
+The mock_test makes a mock oauth server that is very much bound to a local port so it's almost a real thing,
+and and the flow test just simulates different actions
