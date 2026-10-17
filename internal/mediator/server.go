@@ -76,6 +76,8 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("POST /session/logout", s.allowBrowserOrigin(s.validateBrowserPost(s.sessionLogout)))
+	mux.HandleFunc("OPTIONS /session/logout", s.allowBrowserOrigin(browserPreflight))
 	mux.HandleFunc("POST /oauth/{provider}/start", s.allowBrowserOrigin(s.validateBrowserPost(s.providerOAuthStart)))
 	mux.HandleFunc("OPTIONS /oauth/{provider}/start", s.allowBrowserOrigin(s.providerPreflight))
 	mux.HandleFunc("GET /oauth/{provider}/callback", s.providerOAuthCallback)
@@ -87,16 +89,37 @@ func (s *Server) routes() http.Handler {
 // ==== handlers ====
 
 func (s *Server) providerPreflight(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("Access-Control-Request-Method") != http.MethodPost {
-		writeJSONError(w, "forbidden", http.StatusForbidden)
-		return
-	}
 	if _, ok := s.cfg.Providers[r.PathValue("provider")]; !ok {
 		writeJSONError(w, "unknown_provider", http.StatusNotFound)
 		return
 	}
+	browserPreflight(w, r)
+}
+
+func browserPreflight(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Access-Control-Request-Method") != http.MethodPost {
+		writeJSONError(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	w.Header().Set("Access-Control-Allow-Methods", http.MethodPost)
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-OAuth-Bridge")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) sessionLogout(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+		s.store.Delete(session.ID(cookie.Value))
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+		Expires:  time.Unix(1, 0),
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -131,7 +154,14 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if created {
-		setSessionCookie(w, sessionID)
+		http.SetCookie(w, &http.Cookie{
+			Name:     sessionCookieName,
+			Value:    string(sessionID),
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
+		})
 	}
 
 	state, err := generateRandomString(32)

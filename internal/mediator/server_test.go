@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,134 @@ func browserRequest(path, body string) *http.Request {
 	req.Header.Set("X-OAuth-Bridge", "1")
 	req.Header.Set("Content-Type", "application/json")
 	return req
+}
+
+func TestSessionLogout(t *testing.T) {
+	for _, state := range []string{"active", "missing cookie", "unknown", "expired", "deleted"} {
+		t.Run(state, func(t *testing.T) {
+			store, id, handler := refreshFixture(t, "", time.Hour, false)
+			otherID, err := store.Create(time.Hour)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
+				t.Fatal("set pending auth failed")
+			}
+			switch state {
+			case "unknown":
+				id = "unknown"
+			case "expired":
+				id, err = store.Create(-time.Second)
+				if err != nil {
+					t.Fatal(err)
+				}
+			case "deleted":
+				store.Delete(id)
+			}
+			for range 2 {
+				req := browserRequest("/session/logout", "{}")
+				if state != "missing cookie" {
+					req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
+				}
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				if rec.Code != http.StatusNoContent || rec.Body.Len() != 0 {
+					t.Fatalf("logout status = %d, body = %s", rec.Code, rec.Body.String())
+				}
+				cookies := rec.Result().Cookies()
+				if len(cookies) != 1 {
+					t.Fatalf("cookies = %v, want one clearing cookie", cookies)
+				}
+				c := cookies[0]
+				if c.Name != sessionCookieName || c.Value != "" || c.MaxAge != -1 || c.Expires.IsZero() || !c.Expires.Before(time.Now()) || c.Path != "/" || c.Domain != "" || !c.Secure || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode {
+					t.Fatalf("invalid clearing cookie: %+v", c)
+				}
+				if !store.Has(otherID) {
+					t.Fatal("logout deleted another session")
+				}
+				if state == "missing cookie" {
+					if !store.Has(id) {
+						t.Fatal("logout without cookie deleted a session")
+					}
+					continue
+				}
+				if store.Has(id) {
+					t.Fatal("session survived logout")
+				}
+				for _, provider := range []string{"mock", "other"} {
+					if _, ok := store.GetConnection(id, provider); ok {
+						t.Fatal("connection survived logout")
+					}
+				}
+				if _, ok := store.ConsumePendingAuth(id, "mock", "state"); ok {
+					t.Fatal("pending authorization survived logout")
+				}
+				token := httptest.NewRecorder()
+				handler.ServeHTTP(token, browserTokenRequest(id))
+				if token.Code != http.StatusUnauthorized {
+					t.Fatalf("token status after logout = %d", token.Code)
+				}
+			}
+		})
+	}
+}
+
+func TestSessionLogout_InFlightOAuth(t *testing.T) {
+	for _, operation := range []string{"refresh", "callback"} {
+		t.Run(operation, func(t *testing.T) {
+			started := make(chan struct{})
+			release := make(chan struct{})
+			var once sync.Once
+			unblock := func() { once.Do(func() { close(release) }) }
+			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				close(started)
+				<-release
+				io.WriteString(w, `{"access_token":"new","token_type":"Bearer","refresh_token":"rotated","expires_in":3600}`)
+			}))
+			defer provider.Close()
+			defer unblock()
+			store, id, handler := refreshFixture(t, provider.URL, time.Minute, true)
+			req := browserTokenRequest(id)
+			wantStatus := http.StatusUnauthorized
+			if operation == "callback" {
+				if !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", PKCEVerifier: "verifier", CreatedAt: time.Now()}) {
+					t.Fatal("set pending auth failed")
+				}
+				req = httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?code=code&state=state", nil)
+				req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
+				wantStatus = http.StatusBadRequest
+			}
+			req = req.WithContext(t.Context())
+			result := make(chan *httptest.ResponseRecorder, 1)
+			go func() {
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				result <- rec
+			}()
+			select {
+			case <-started:
+			case rec := <-result:
+				t.Fatalf("OAuth request ended before exchange: %d %s", rec.Code, rec.Body.String())
+			case <-time.After(5 * time.Second):
+				t.Fatal("OAuth request did not reach provider")
+			}
+			logout := browserRequest("/session/logout", "{}")
+			logout.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, logout)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("logout status = %d", rec.Code)
+			}
+			unblock()
+			completed := <-result
+			if completed.Code != wantStatus || strings.Contains(completed.Body.String(), "new") || len(completed.Result().Cookies()) != 0 {
+				t.Fatalf("in-flight %s response = %d %s", operation, completed.Code, completed.Body.String())
+			}
+			if store.Has(id) {
+				t.Fatal("in-flight OAuth restored deleted session")
+			}
+		})
+	}
 }
 
 // Checks that a client cannot hold a POST open by leaving its body unfinished.
@@ -192,9 +321,9 @@ func TestProviderToken_Unauthorized(t *testing.T) {
 	}
 }
 
-// Checks that both POST routes reject invalid headers/bodies and accept valid JSON requests.
+// Checks that browser POST routes reject invalid headers/bodies and accept valid JSON requests.
 func TestValidateBrowserPost_Validation(t *testing.T) {
-	for _, route := range []string{"start", "token"} {
+	for _, route := range []string{"start", "token", "logout"} {
 		for _, tc := range []struct {
 			name, body, header, value string
 			status                    int
@@ -214,13 +343,22 @@ func TestValidateBrowserPost_Validation(t *testing.T) {
 			{name: "trailing json", body: "{} {}", status: 400},
 			{name: "trailing junk", body: "{} junk", status: 400},
 			{name: "oversized body", body: "{}" + strings.Repeat(" ", 8<<10), status: 400},
-			{name: "valid", body: "{}", status: map[string]int{"start": 200, "token": 401}[route]},
-			{name: "charset and whitespace", body: " {} \n", header: "Content-Type", value: "application/json; charset=utf-8", status: map[string]int{"start": 200, "token": 401}[route]},
+			{name: "valid", body: "{}", status: map[string]int{"start": 200, "token": 401, "logout": 204}[route]},
+			{name: "charset and whitespace", body: " {} \n", header: "Content-Type", value: "application/json; charset=utf-8", status: map[string]int{"start": 200, "token": 401, "logout": 204}[route]},
 		} {
 			t.Run(route+"/"+tc.name, func(t *testing.T) {
 				store := session.NewStore()
 				cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {AuthUrl: "https://provider.example/authorize"}}}
-				req := browserRequest("/oauth/mock/"+route, tc.body)
+				path := "/oauth/mock/" + route
+				if route == "logout" {
+					path = "/session/logout"
+				}
+				id, err := store.Create(time.Hour)
+				if err != nil {
+					t.Fatal(err)
+				}
+				req := browserRequest(path, tc.body)
+				req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 				if tc.header != "" {
 					req.Header.Set(tc.header, tc.value)
 				}
@@ -229,7 +367,10 @@ func TestValidateBrowserPost_Validation(t *testing.T) {
 				if rec.Code != tc.status {
 					t.Fatalf("status = %d, want %d, body = %s", rec.Code, tc.status, rec.Body.String())
 				}
-				if tc.status != http.StatusOK && len(rec.Result().Cookies()) != 0 {
+				if tc.status >= 400 && !store.Has(id) {
+					t.Fatal("rejected request deleted the session")
+				}
+				if tc.status >= 400 && len(rec.Result().Cookies()) != 0 {
 					t.Fatal("rejected request must not create a session cookie")
 				}
 				if rec.Header().Get("Cache-Control") != "no-store" {
@@ -251,7 +392,7 @@ func TestValidateBrowserPost_Validation(t *testing.T) {
 }
 
 func TestProviderPreflight(t *testing.T) {
-	for _, route := range []string{"start", "token"} {
+	for _, route := range []string{"start", "token", "logout"} {
 		for _, tc := range []struct {
 			name, origin, method, provider, headers string
 			status                                  int
@@ -267,7 +408,14 @@ func TestProviderPreflight(t *testing.T) {
 		} {
 			t.Run(route+"/"+tc.name, func(t *testing.T) {
 				cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
-				req := httptest.NewRequest(http.MethodOptions, "/oauth/"+tc.provider+"/"+route, nil)
+				path := "/oauth/" + tc.provider + "/" + route
+				if route == "logout" {
+					if tc.name == "unknown provider" {
+						return
+					}
+					path = "/session/logout"
+				}
+				req := httptest.NewRequest(http.MethodOptions, path, nil)
 				req.Header.Set("Origin", tc.origin)
 				req.Header.Set("Access-Control-Request-Method", tc.method)
 				req.Header.Set("Access-Control-Request-Headers", tc.headers)
@@ -316,6 +464,8 @@ func TestProviderToken_Routing(t *testing.T) {
 		{http.MethodPost, "/oauth/unknown/token", http.StatusNotFound},
 		{http.MethodGet, "/oauth/mock/token", http.StatusMethodNotAllowed},
 		{http.MethodDelete, "/oauth/mock/token", http.StatusMethodNotAllowed},
+		{http.MethodGet, "/session/logout", http.StatusMethodNotAllowed},
+		{http.MethodDelete, "/session/logout", http.StatusMethodNotAllowed},
 	} {
 		req := browserRequest(tc.path, "{}")
 		req.Method = tc.method
