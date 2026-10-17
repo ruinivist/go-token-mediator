@@ -4,11 +4,63 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
 	"net/http"
 
 	"token-mediator/internal/session"
 )
+
+func writeJSONError(w http.ResponseWriter, code string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": code})
+}
+
+// validateBrowserPost checks the browser origin, CSRF header, and empty JSON body before calling the handler.
+func (s *Server) validateBrowserPost(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Return JSON and prevent browsers or proxies from caching sensitive responses.
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+
+		// Require the configured frontend origin and custom CSRF header.
+		if r.Header.Get("Origin") == "" || r.Header.Get("Origin") != s.cfg.FeOrigin || r.Header.Get("X-OAuth-Bridge") != "1" {
+			writeJSONError(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		// Accept application/json, including optional parameters such as charset.
+		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil || mediaType != "application/json" {
+			writeJSONError(w, "invalid_request", http.StatusBadRequest)
+			return
+		}
+
+		// Limit the body to 8 KiB before decoding it.
+		r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+		decoder := json.NewDecoder(r.Body)
+
+		// Require an empty object; reject fields, null, and other JSON shapes.
+		var body map[string]json.RawMessage
+		if err := decoder.Decode(&body); err != nil || body == nil || len(body) != 0 {
+			writeJSONError(w, "invalid_request", http.StatusBadRequest)
+			return
+		}
+
+		// Allow trailing whitespace, but reject another JSON value or extra bytes.
+		var trailing any
+		if err := decoder.Decode(&trailing); err != io.EOF {
+			writeJSONError(w, "invalid_request", http.StatusBadRequest)
+			return
+		}
+
+		// Run the route handler only after all checks pass.
+		next(w, r)
+	}
+}
 
 // base64 url encoded string of nBytes bytes
 func generateRandomString(nBytes int) (string, error) {

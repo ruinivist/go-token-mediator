@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"token-mediator/internal/session"
@@ -36,6 +37,8 @@ func NewServer(cfg *Config, store *session.Store) *Server {
 		// slowly at 1 byte every 10 seconds. Servers had to keep the
 		// connection open leading to a DoS
 		ReadHeaderTimeout: 5 * time.Second,
+		// Limit how long a client can take to send the headers and body.
+		ReadTimeout: 10 * time.Second,
 		// how long to keep an idle TCP open, browsers keep the connection
 		// alive so the whole handshake isn't done again
 		IdleTimeout: 60 * time.Second,
@@ -73,8 +76,9 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
-	mux.HandleFunc("POST /oauth/{provider}/start", s.providerOAuthStart)
+	mux.HandleFunc("POST /oauth/{provider}/start", s.validateBrowserPost(s.providerOAuthStart))
 	mux.HandleFunc("GET /oauth/{provider}/callback", s.providerOAuthCallback)
+	mux.HandleFunc("POST /oauth/{provider}/token", s.validateBrowserPost(s.providerToken))
 	return mux
 }
 
@@ -141,6 +145,7 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handles /oauth/{provider}/callback
 func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	providerName := r.PathValue("provider")
 	p, ok := s.cfg.Providers[providerName]
@@ -176,7 +181,7 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if resp.ErrorCode != "" || resp.AccessToken == "" {
+	if resp.ErrorCode != "" || resp.AccessToken == "" || !strings.EqualFold(resp.TokenType, "Bearer") {
 		http.Error(w, "provider rejected token exchange", http.StatusBadGateway)
 		return
 	}
@@ -197,4 +202,52 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, s.cfg.FeCompletion, http.StatusSeeOther)
+}
+
+// handles /oauth/{provider}/token
+func (s *Server) providerToken(w http.ResponseWriter, r *http.Request) {
+	type accessTokenResponse struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   *int64 `json:"expires_in,omitempty"`
+		Scope       string `json:"scope,omitempty"`
+	}
+	// resolve provider to be valid
+	providerName := r.PathValue("provider")
+	_, ok := s.cfg.Providers[providerName]
+	if !ok {
+		writeJSONError(w, "unknown_provider", http.StatusNotFound)
+		return
+	}
+
+	// get cookie and check it's valid as well AND it has a connection
+	c, err := r.Cookie(sessionCookieName)
+	if err != nil {
+		writeJSONError(w, "reauthorization_required", http.StatusUnauthorized)
+		return
+	}
+	sessId := session.ID(c.Value)
+
+	conn, ok := s.store.GetConnection(sessId, providerName)
+	if !ok {
+		writeJSONError(w, "reauthorization_required", http.StatusUnauthorized)
+		return
+	}
+
+	response := accessTokenResponse{
+		AccessToken: conn.AccessToken,
+		TokenType:   "Bearer",
+		Scope:       conn.Scopes,
+	}
+	if !conn.ExpiresAt.IsZero() {
+		remaining := time.Until(conn.ExpiresAt)
+		if remaining <= 0 {
+			// TODO: refresh needs to be ahndled
+			writeJSONError(w, "reauthorization_required", http.StatusUnauthorized)
+			return
+		}
+		seconds := int64(remaining / time.Second)
+		response.ExpiresIn = &seconds
+	}
+	json.NewEncoder(w).Encode(response)
 }

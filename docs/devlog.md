@@ -178,3 +178,11 @@ Update: I wrote this all in learning-security
 
 I made an `internal/mediator` boundary as well, point being it'll allow to
 hide the internals from startup code.
+
+## `oauth/{provider}/token`
+
+I'm skipping refesh for now but otherwise it's straigthforward.
+Skipping auto-refresh handling. If there is an expiry it sends it back. We also need to be handling OPTIONS requests, that is pending still.
+
+This is the point where I started to let codex do some of the impl, it's useful to remind me of cases that I could not have caught.
+For example, the read timeout for decoding json bodies, could've been a DOS if left unchecked.

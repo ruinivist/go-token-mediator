@@ -40,7 +40,7 @@ func TestOAuthFlow(t *testing.T) {
 	// ---------- Start ----------
 
 	start := httptest.NewRecorder()
-	handler.ServeHTTP(start, httptest.NewRequest(http.MethodPost, "/oauth/mock/start", nil))
+	handler.ServeHTTP(start, browserRequest("/oauth/mock/start", "{}"))
 	if start.Code != http.StatusOK {
 		t.Fatalf("start status = %d, body = %s", start.Code, start.Body.String())
 	}
@@ -163,6 +163,27 @@ func TestOAuthFlow(t *testing.T) {
 	}
 	if connection.ExpiresAt.Before(before.Add(time.Hour)) || connection.ExpiresAt.After(after.Add(time.Hour)) {
 		t.Errorf("token expiry = %v, want one hour after exchange", connection.ExpiresAt)
+	}
+
+	// ---------- Browser token retrieval ----------
+
+	tokenRequest := browserRequest("/oauth/mock/token", "{}")
+	tokenRequest.AddCookie(cookie)
+	token := httptest.NewRecorder()
+	handler.ServeHTTP(token, tokenRequest)
+	if token.Code != http.StatusOK {
+		t.Fatalf("token status = %d, body = %s", token.Code, token.Body.String())
+	}
+	var browserToken map[string]any
+	if err := json.Unmarshal(token.Body.Bytes(), &browserToken); err != nil {
+		t.Fatal(err)
+	}
+	if len(browserToken) != 4 || browserToken["access_token"] != "mock-access-token" ||
+		browserToken["token_type"] != "Bearer" || browserToken["scope"] != "read:user" {
+		t.Fatalf("unexpected browser token: %v", browserToken)
+	}
+	if seconds, ok := browserToken["expires_in"].(float64); !ok || seconds <= 0 || seconds > 3600 {
+		t.Fatalf("unexpected remaining expiry: %v", browserToken["expires_in"])
 	}
 
 	// ---------- Replay rejection ----------

@@ -176,19 +176,27 @@ func TestStore_ConnectionCopies(t *testing.T) {
 	}
 }
 
+// Checks that inactive sessions reject reads and writes, even with a saved connection.
 func TestStore_InactiveSessions(t *testing.T) {
 	store := NewStore()
-	expiredID, err := store.Create(-time.Second)
+	expiredID, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
+	connection := Connection{Provider: "github", AccessToken: "token"}
+	if !store.SaveConnection(expiredID, connection) {
+		t.Fatal("failed to save connection before session expiry")
+	}
+	store.mtx.Lock()
+	store.sessions[expiredID].expiresAt = time.Now().Add(-time.Second)
+	store.mtx.Unlock()
+
 	deletedID, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	store.Delete(deletedID)
 	pending := PendingAuth{Provider: "github", State: "state", CreatedAt: time.Now()}
-	connection := Connection{Provider: "github", AccessToken: "token"}
 	for _, id := range []ID{"", "missing", expiredID, deletedID} {
 		if store.Has(id) {
 			t.Errorf("inactive session %q reported active", id)
