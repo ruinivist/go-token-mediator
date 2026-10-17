@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -26,6 +27,7 @@ type session struct {
 	expiresAt   time.Time
 	pendingAuth *PendingAuth
 	connections map[string]*Connection // provider -> connection
+	updates     map[string]*connectionUpdate
 }
 
 // latest oauth flow started for a session, valid for 10 mins
@@ -49,6 +51,14 @@ type Connection struct {
 	ExpiresAt time.Time
 }
 
+// ErrNoConnection indicates a missing, expired, or replaced connection.
+var ErrNoConnection = errors.New("no active provider connection")
+
+type connectionUpdate struct {
+	done chan struct{}
+	err  error
+}
+
 // ---------- Session access ----------
 
 // Make a new session store, expected to be used as a singleton
@@ -69,6 +79,7 @@ func (s *Store) Create(lifetime time.Duration) (ID, error) {
 	sess := &session{
 		expiresAt:   time.Now().Add(lifetime),
 		connections: make(map[string]*Connection),
+		updates:     make(map[string]*connectionUpdate),
 	}
 
 	s.mtx.Lock()
@@ -173,6 +184,86 @@ func (s *Store) SaveConnection(id ID, connection Connection) bool {
 	}
 	sess.connections[connection.Provider] = &connection
 	return true
+}
+
+// UpdateConnection shares one in-flight callback result per session/provider.
+// The callback runs outside the store lock; nil deletes the connection, even on error.
+func (s *Store) UpdateConnection(ctx context.Context, id ID, provider string, update func(Connection) (*Connection, error)) (Connection, error) {
+	if err := ctx.Err(); err != nil {
+		return Connection{}, err
+	}
+	s.mtx.Lock()
+
+	// if the session itself expired ask to reauth
+	sess, ok := s.sessions[id]
+	if !ok || time.Now().After(sess.expiresAt) {
+		s.mtx.Unlock()
+		return Connection{}, ErrNoConnection
+	}
+
+	// is a refresh in flight?
+	flight := sess.updates[provider]
+	if flight != nil {
+		s.mtx.Unlock()
+		// Cancelling a waiter stops only its wait, not the running callback.
+		select {
+		case <-ctx.Done():
+			return Connection{}, ctx.Err()
+		case <-flight.done:
+		}
+		return s.connectionUpdateResult(id, provider, sess, flight)
+	}
+
+	original := sess.connections[provider]
+	if original == nil {
+		s.mtx.Unlock()
+		return Connection{}, ErrNoConnection
+	}
+	// Register before unlocking so another request cannot refresh the same token.
+	flight = &connectionUpdate{done: make(chan struct{})}
+	sess.updates[provider] = flight
+	s.mtx.Unlock()
+
+	// Pass a copy and leave unrelated sessions/providers free during provider HTTP calls.
+	connection, err := update(*original)
+
+	s.mtx.Lock()
+	// The callback's pointer controls storage; an error alone does not delete credentials.
+	flight.err = err
+	switch {
+	case s.sessions[id] != sess || time.Now().After(sess.expiresAt) || sess.connections[provider] != original:
+		// A refresh must not restore a deleted session or overwrite a reconnect.
+		flight.err = ErrNoConnection
+	case connection == nil:
+		delete(sess.connections, provider)
+	default:
+		copy := *connection
+		sess.connections[provider] = &copy
+	}
+	delete(sess.updates, provider)
+	// Publish the completed result before waking all waiting requests.
+	close(flight.done)
+	s.mtx.Unlock()
+	return s.connectionUpdateResult(id, provider, sess, flight)
+}
+
+// connectionUpdateResult reads the current connection after a successful update.
+// A delayed waiter may see a newer refresh's credentials; shared errors are preserved.
+func (s *Store) connectionUpdateResult(id ID, provider string, sess *session, flight *connectionUpdate) (Connection, error) {
+	// Deletion or reconnect may have happened between completion and a waiter waking.
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	if s.sessions[id] != sess || time.Now().After(sess.expiresAt) {
+		return Connection{}, ErrNoConnection
+	}
+	if flight.err != nil {
+		return Connection{}, flight.err
+	}
+	connection := sess.connections[provider]
+	if connection == nil {
+		return Connection{}, ErrNoConnection
+	}
+	return *connection, nil
 }
 
 // ---------- Cleanup ----------

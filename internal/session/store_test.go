@@ -3,9 +3,12 @@
 package session
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -285,5 +288,172 @@ func TestStore_ConcurrentConsumePendingAuth(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected exactly one successful consumer, got %d", count)
+	}
+}
+
+// ---------- In-flight connection updates ----------
+
+func TestStore_UpdateConnectionCoalesces(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		synctest.Test(t, func(t *testing.T) {
+			store := NewStore()
+			id, err := store.Create(time.Hour)
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.SaveConnection(id, Connection{Provider: "mock", AccessToken: "old"})
+			store.SaveConnection(id, Connection{Provider: "other", AccessToken: "unrelated"})
+			otherID, err := store.Create(time.Hour)
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.SaveConnection(otherID, Connection{Provider: "mock", AccessToken: "other-session"})
+			release := make(chan struct{})
+			calls := 0
+			upstreamErr := errors.New("upstream failure")
+			update := func(conn Connection) (*Connection, error) {
+				calls++
+				<-release
+				if fail {
+					return nil, upstreamErr
+				}
+				conn.AccessToken = "new"
+				return &conn, nil
+			}
+			var wg sync.WaitGroup
+			for range 16 {
+				wg.Go(func() {
+					conn, err := store.UpdateConnection(t.Context(), id, "mock", update)
+					if fail {
+						if !errors.Is(err, upstreamErr) {
+							t.Errorf("error = %v", err)
+						}
+					} else if err != nil || conn.AccessToken != "new" {
+						t.Errorf("connection = %v, error = %v", conn, err)
+					}
+				})
+			}
+			synctest.Wait()
+			if calls != 1 {
+				t.Fatalf("updates = %d, want 1", calls)
+			}
+			// Other providers and sessions remain usable while the update blocks.
+			for _, key := range []struct {
+				id       ID
+				provider string
+			}{{id, "other"}, {otherID, "mock"}} {
+				_, err := store.UpdateConnection(t.Context(), key.id, key.provider, func(c Connection) (*Connection, error) { return &c, nil })
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			cancelled := make(chan error, 1)
+			go func() { _, err := store.UpdateConnection(ctx, id, "mock", update); cancelled <- err }()
+			synctest.Wait()
+			cancel()
+			if err := <-cancelled; !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			close(release)
+			wg.Wait()
+			if calls != 1 {
+				t.Fatalf("updates = %d, want 1", calls)
+			}
+		})
+	}
+}
+
+func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
+	for _, action := range []string{"delete", "expire", "reconnect"} {
+		t.Run(action, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				store := NewStore()
+				id, err := store.Create(time.Minute)
+				if err != nil {
+					t.Fatal(err)
+				}
+				store.SaveConnection(id, Connection{Provider: "mock", AccessToken: "old"})
+				release := make(chan struct{})
+				result := make(chan error, 1)
+				go func() {
+					_, err := store.UpdateConnection(t.Context(), id, "mock", func(c Connection) (*Connection, error) {
+						<-release
+						c.AccessToken = "stale"
+						return &c, nil
+					})
+					result <- err
+				}()
+				synctest.Wait()
+				switch action {
+				case "delete":
+					store.Delete(id)
+				case "expire":
+					time.Sleep(2 * time.Minute)
+				case "reconnect":
+					store.SaveConnection(id, Connection{Provider: "mock", AccessToken: "reconnected"})
+				}
+				close(release)
+				if err := <-result; !errors.Is(err, ErrNoConnection) {
+					t.Fatal(err)
+				}
+				conn, ok := store.GetConnection(id, "mock")
+				if action == "reconnect" {
+					if !ok || conn.AccessToken != "reconnected" {
+						t.Fatal("overwrote reconnect")
+					}
+				} else if ok {
+					t.Fatal("restored inactive session")
+				}
+			})
+		})
+	}
+}
+
+func TestStore_UpdateConnectionDelayedWaiterReadsLatest(t *testing.T) {
+	store := NewStore()
+	id, err := store.Create(time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !store.SaveConnection(id, Connection{Provider: "mock", AccessToken: "old"}) {
+		t.Fatal("save connection failed")
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	completed := make(chan error, 1)
+	go func() {
+		_, err := store.UpdateConnection(t.Context(), id, "mock", func(c Connection) (*Connection, error) {
+			close(started)
+			<-release
+			c.AccessToken = "first"
+			c.ExpiresAt = time.Now().Add(time.Minute)
+			return &c, nil
+		})
+		completed <- err
+	}()
+	<-started
+	store.mtx.RLock()
+	sess := store.sessions[id]
+	flight := sess.updates["mock"]
+	store.mtx.RUnlock()
+	close(release)
+	if err := <-completed; err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = store.UpdateConnection(t.Context(), id, "mock", func(c Connection) (*Connection, error) {
+		c.AccessToken = "second"
+		return &c, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Resume the first refresh's waiter after the second refresh has finished.
+	got, err := store.connectionUpdateResult(id, "mock", sess, flight)
+	if err != nil || got.AccessToken != "second" {
+		t.Fatalf("delayed waiter token = %q, error = %v; want second token", got.AccessToken, err)
 	}
 }

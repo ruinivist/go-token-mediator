@@ -77,7 +77,10 @@ func TestProviderToken_Response(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			conn := session.Connection{Provider: "mock", AccessToken: "own-token", RefreshToken: "private-refresh", Scopes: tc.scope}
+			conn := session.Connection{Provider: "mock", AccessToken: "own-token", Scopes: tc.scope}
+			if tc.lifetime > 2*time.Minute || tc.lifetime == 0 {
+				conn.RefreshToken = "private-refresh"
+			}
 			if tc.lifetime != 0 {
 				conn.ExpiresAt = time.Now().Add(tc.lifetime)
 			}
@@ -157,7 +160,7 @@ func TestProviderToken_Unauthorized(t *testing.T) {
 				store.Delete(id)
 			}
 			if name == "expired token" {
-				if !store.SaveConnection(id, session.Connection{Provider: "mock", AccessToken: "expired", RefreshToken: "private", ExpiresAt: time.Now().Add(-time.Second)}) {
+				if !store.SaveConnection(id, session.Connection{Provider: "mock", AccessToken: "expired", ExpiresAt: time.Now().Add(-time.Second)}) {
 					t.Fatal("save expired connection failed")
 				}
 			}

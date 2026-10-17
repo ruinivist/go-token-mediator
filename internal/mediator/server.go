@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"token-mediator/internal/session"
@@ -124,6 +124,7 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		cookieID = session.ID(c.Value)
 	}
 
+	// TODO: this 24 hour on session expiry should be configurable in config
 	sessionID, created, err := s.store.GetOrCreate(cookieID, 24*time.Hour)
 	if err != nil {
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
@@ -193,20 +194,29 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// use same context as the original request
 	resp, err := p.fetchAccessToken(code, pa.PKCEVerifier, r.Context())
 	if err != nil {
-		http.Error(w, "failed to fetch access tokens", http.StatusForbidden)
+		status := http.StatusBadGateway
+		var timeout net.Error
+		if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &timeout) && timeout.Timeout()) {
+			status = http.StatusGatewayTimeout
+		}
+		http.Error(w, "failed to fetch access tokens", status)
 		return
 	}
 
-	if resp.ErrorCode != "" || resp.AccessToken == "" || !strings.EqualFold(resp.TokenType, "Bearer") {
+	if resp.TokenType == nil {
 		http.Error(w, "provider rejected token exchange", http.StatusBadGateway)
 		return
 	}
 
 	conn := &session.Connection{
-		Provider:     providerName,
-		AccessToken:  resp.AccessToken,
-		RefreshToken: resp.RefreshToken,
-		Scopes:       resp.Scope,
+		Provider:    providerName,
+		AccessToken: resp.AccessToken,
+	}
+	if resp.RefreshToken != nil {
+		conn.RefreshToken = *resp.RefreshToken
+	}
+	if resp.Scope != nil {
+		conn.Scopes = *resp.Scope
 	}
 	if resp.ExpiresIn != nil {
 		// rfc declares it to be in seconds
@@ -230,7 +240,7 @@ func (s *Server) providerToken(w http.ResponseWriter, r *http.Request) {
 	}
 	// resolve provider to be valid
 	providerName := r.PathValue("provider")
-	_, ok := s.cfg.Providers[providerName]
+	p, ok := s.cfg.Providers[providerName]
 	if !ok {
 		writeJSONError(w, "unknown_provider", http.StatusNotFound)
 		return
@@ -244,9 +254,52 @@ func (s *Server) providerToken(w http.ResponseWriter, r *http.Request) {
 	}
 	sessId := session.ID(c.Value)
 
-	conn, ok := s.store.GetConnection(sessId, providerName)
-	if !ok {
-		writeJSONError(w, "reauthorization_required", http.StatusUnauthorized)
+	conn, err := s.store.UpdateConnection(r.Context(), sessId, providerName, func(conn session.Connection) (*session.Connection, error) {
+		if conn.ExpiresAt.IsZero() || time.Until(conn.ExpiresAt) > 2*time.Minute {
+			return &conn, nil
+		}
+		if conn.RefreshToken == "" {
+			if !time.Now().Before(conn.ExpiresAt) {
+				return nil, session.ErrNoConnection
+			}
+			return &conn, nil
+		}
+		resp, err := p.refreshAccessToken(r.Context(), conn.RefreshToken)
+		if err != nil {
+			var upstream *tokenError
+			if errors.As(err, &upstream) && (upstream.code == "invalid_grant" || upstream.uncertain) {
+				if upstream.code == "invalid_grant" {
+					return nil, session.ErrNoConnection
+				}
+				return nil, err
+			}
+			return &conn, err
+		}
+		conn.AccessToken = resp.AccessToken
+		conn.ExpiresAt = time.Time{}
+		if resp.ExpiresIn != nil {
+			conn.ExpiresAt = time.Now().Add(time.Duration(*resp.ExpiresIn) * time.Second)
+		}
+		if resp.RefreshToken != nil {
+			conn.RefreshToken = *resp.RefreshToken
+		}
+		if resp.Scope != nil {
+			conn.Scopes = *resp.Scope
+		}
+		return &conn, nil
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, session.ErrNoConnection):
+			writeJSONError(w, "reauthorization_required", http.StatusUnauthorized)
+		default:
+			var timeout net.Error
+			if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &timeout) && timeout.Timeout()) {
+				writeJSONError(w, "provider_timeout", http.StatusGatewayTimeout)
+			} else {
+				writeJSONError(w, "provider_error", http.StatusBadGateway)
+			}
+		}
 		return
 	}
 
@@ -258,7 +311,6 @@ func (s *Server) providerToken(w http.ResponseWriter, r *http.Request) {
 	if !conn.ExpiresAt.IsZero() {
 		remaining := time.Until(conn.ExpiresAt)
 		if remaining <= 0 {
-			// TODO: refresh needs to be ahndled
 			writeJSONError(w, "reauthorization_required", http.StatusUnauthorized)
 			return
 		}

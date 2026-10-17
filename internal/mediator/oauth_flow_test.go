@@ -3,12 +3,15 @@
 package mediator
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,5 +199,64 @@ func TestOAuthFlow(t *testing.T) {
 	case <-tokenRequests:
 		t.Fatal("replayed callback contacted the token endpoint")
 	default:
+	}
+}
+
+// ---------- Provider failures ----------
+
+func TestOAuthCallback_ProviderFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		status     int
+		body       string
+		timeout    bool
+		wantStatus int
+	}{
+		{name: "empty access token", status: 200, body: `{"access_token":"","token_type":"Bearer"}`, wantStatus: 502},
+		{name: "malformed JSON", status: 200, body: `{`, wantStatus: 502},
+		{name: "OAuth error with 200", status: 200, body: `{"error":"invalid_client","error_description":"private-secret"}`, wantStatus: 502},
+		{name: "upstream HTTP error", status: 503, body: `private-secret`, wantStatus: 502},
+		{name: "timeout", timeout: true, wantStatus: 504},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.timeout {
+					io.Copy(io.Discard, r.Body)
+					<-r.Context().Done()
+					return
+				}
+				w.WriteHeader(tc.status)
+				io.WriteString(w, tc.body)
+			}))
+			defer provider.Close()
+			store := session.NewStore()
+			id, err := store.Create(time.Hour)
+			if err != nil {
+				t.Fatal(err)
+			}
+			original := session.Connection{Provider: "mock", AccessToken: "existing", RefreshToken: "private-refresh"}
+			if !store.SaveConnection(id, original) || !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
+				t.Fatal("failed to prepare reconnect")
+			}
+			cfg := &Config{Providers: map[string]ProviderConfig{"mock": {TokenUrl: provider.URL}}}
+			req := httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?code=code&state=state", nil)
+			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
+			if tc.timeout {
+				ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+				defer cancel()
+				req = req.WithContext(ctx)
+			}
+			rec := httptest.NewRecorder()
+			NewServer(cfg, store).routes().ServeHTTP(rec, req)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			if rec.Header().Get("Location") != "" || strings.Contains(rec.Body.String(), "private") {
+				t.Fatal("redirected or exposed provider details on failure")
+			}
+			if got, ok := store.GetConnection(id, "mock"); !ok || got != original {
+				t.Fatal("changed existing connection after failed reconnect")
+			}
+		})
 	}
 }

@@ -196,3 +196,30 @@ We set the same site mode in `setSessionCookie` in helpers. This table explains 
 | `http://localhost:3000` → `http://localhost:8080`        | Different origins, same site | Compatible                        |
 | `https://app.example.com` → `https://auth.example.com`   | Different origins, same site | Compatible                        |
 | `https://app.example.com` → `https://mediator.other.com` | Different sites              | Blocked on frontend `fetch` calls |
+
+## Why is token endpoint a POST with `{}` body
+
+A get does not make sense as the verb is read but here we are making changes to the server state as well ( refresh/rotate if close to expiry ).
+
+## Adding a refresh
+
+choices
+
+- done if close to expiry ( 2 min )
+- provider responses capped to 64kib
+- no retries
+
+The way it works it that on /token request we check if refresh needed ( <2 mins to expiry ). If needed, then check for in flight updates to the same id to avoid making another one. Then if none exists, make a refresh call and return updated.
+
+## Problem of double refresh
+
+3 requests: A, B, C.
+
+A is first and B waits for A's refresh to be done.
+C occurs after A's refresh is done but before B resumes.
+
+What happens is that A is finished nicely so clears markers, B is signalled but hasn't gotten CPU yet.
+C arrives and sees no marker and refreshes ( this is assuming tokens are TOO short lived so not a real problem, we'll
+anyways be refreshing on each request ).
+C succeeds, and now B wakes up, sees token #1 ( it was passed by A ) when stored is different and fails.
+The fix is just to signal B and let it read from store.
