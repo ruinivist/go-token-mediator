@@ -1,4 +1,4 @@
-package main
+package mediator
 
 import (
 	"encoding/json"

@@ -1,6 +1,6 @@
 // This file provides a mock OAuth token endpoint and captures token requests.
 // The mediator flow tests use it instead of contacting a real provider.
-package main
+package mediator
 
 import (
 	"io"

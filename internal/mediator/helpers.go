@@ -1,4 +1,4 @@
-package main
+package mediator
 
 import (
 	"crypto/rand"
@@ -11,7 +11,7 @@ import (
 )
 
 // base64 url encoded string of nBytes bytes
-func GenerateRandomString(nBytes int) (string, error) {
+func generateRandomString(nBytes int) (string, error) {
 	b := make([]byte, nBytes)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("failed to read random bytes, err = %w", err)
@@ -22,11 +22,11 @@ func GenerateRandomString(nBytes int) (string, error) {
 }
 
 // 32 bytes pixy
-func GeneratePKCE() (verifier, challenge string, err error) {
+func generatePKCE() (verifier, challenge string, err error) {
 	// go allows you to name return values, these values above
 	// are already declared, hence you do a = based assignment
 	// instead of a := like declaration
-	verifier, err = GenerateRandomString(32)
+	verifier, err = generateRandomString(32)
 	if err != nil {
 		return "", "", err
 	}

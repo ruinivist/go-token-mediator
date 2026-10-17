@@ -1,4 +1,4 @@
-package main
+package mediator
 
 import (
 	"net/http"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestServer_Health(t *testing.T) {
-	cfg, err := LoadConfig("config.example.json")
+	cfg, err := LoadConfig("../../config.example.json")
 	if err != nil {
 		t.Fatalf("failed to load fixture config: %v", err)
 	}

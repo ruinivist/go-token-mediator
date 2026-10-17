@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"token-mediator/internal/mediator"
 	"token-mediator/internal/session"
 )
 
@@ -18,7 +19,7 @@ func main() {
 		log.Fatalf("CONFIG_PATH env is unset")
 	}
 
-	cfg, err := LoadConfig(configPath)
+	cfg, err := mediator.LoadConfig(configPath)
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
@@ -33,7 +34,7 @@ func main() {
 	store.StartCleanupWorker(ctx, 10*time.Minute)
 
 	// server
-	server := NewServer(cfg, store)
+	server := mediator.NewServer(cfg, store)
 	if err := server.Run(ctx); err != nil {
 		log.Fatalf("server error, err = %v", err)
 	}

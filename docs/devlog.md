@@ -161,3 +161,20 @@ writes going via the session store using session id instead so that there is nev
 I wasn't very keen on writign it myself so let codex handle it.
 The mock_test makes a mock oauth server that is very much bound to a local port so it's almost a real thing,
 and and the flow test just simulates different actions
+
+# Preflight and how browser and server communicate as trusted parties in the world of arbitary code
+
+what is a preflight
+when is it triggered
+can scritp spoof origin etc
+practice of setting custom headers
+implication if I do no set a customer header like X-OAuth-Bridge?
+is all this hjeader doing a forcing and protection against generic attacks
+what does the server need to ENSURE that it's doing it's part in the communication safely
+
+Update: I wrote this all in learning-security
+
+## A little of a refactor.
+
+I made an `internal/mediator` boundary as well, point being it'll allow to
+hide the internals from startup code.

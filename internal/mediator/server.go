@@ -1,4 +1,4 @@
-package main
+package mediator
 
 import (
 	"context"
@@ -113,13 +113,13 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		setSessionCookie(w, sessionID)
 	}
 
-	state, err := GenerateRandomString(32)
+	state, err := generateRandomString(32)
 	if err != nil {
 		http.Error(w, "failed to generate state", http.StatusInternalServerError)
 		return
 	}
 
-	verifier, challenge, err := GeneratePKCE()
+	verifier, challenge, err := generatePKCE()
 	if err != nil {
 		http.Error(w, "failed to generate pkce", http.StatusInternalServerError)
 		return
@@ -137,7 +137,7 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"authorization_url": p.BuildAuthUrl(state, challenge),
+		"authorization_url": p.buildAuthUrl(state, challenge),
 	})
 }
 
@@ -170,7 +170,7 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// now use this code to fetch the access token from the provider
 
 	// use same context as the original request
-	resp, err := p.FetchAccessToken(code, pa.PKCEVerifier, r.Context())
+	resp, err := p.fetchAccessToken(code, pa.PKCEVerifier, r.Context())
 	if err != nil {
 		http.Error(w, "failed to fetch access tokens", http.StatusForbidden)
 		return

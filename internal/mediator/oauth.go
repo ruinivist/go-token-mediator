@@ -1,4 +1,4 @@
-package main
+package mediator
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 // gh uses this, and the standard speicifies the shape as well
 // https://www.rfc-editor.org/rfc/rfc6749.html#section-5.1
 // I believe any OAuth compliant provider will work with this
-type TokenResponse struct {
+type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	// why ptr? to distinguish an ommission leading to 0 default
@@ -33,7 +33,7 @@ type TokenResponse struct {
 // ==== funcs ====
 
 // OAUthUrl the client will redirect the user to
-func (p *ProviderConfig) BuildAuthUrl(state, challenge string) string {
+func (p *ProviderConfig) buildAuthUrl(state, challenge string) string {
 	params := url.Values{}
 	// now the 7 fields they need
 	params.Set("client_id", p.ClientId)
@@ -52,7 +52,7 @@ func (p *ProviderConfig) BuildAuthUrl(state, challenge string) string {
 
 // POSTs to token url with code and it's verifier to get access tokens
 // along with the parent context to handle cancellations
-func (p *ProviderConfig) FetchAccessToken(code, verifier string, ctx context.Context) (*TokenResponse, error) {
+func (p *ProviderConfig) fetchAccessToken(code, verifier string, ctx context.Context) (*tokenResponse, error) {
 	/*
 		encoding is encoding for the post body
 		it can be "form-encoding" or "json"
@@ -66,7 +66,7 @@ func (p *ProviderConfig) FetchAccessToken(code, verifier string, ctx context.Con
 	// code + verifier is to match THAT user's auth
 	// redirect_uri is kinda redundant, it doesn't redirect to anything at this
 	// step but is just a consistency check of sorts ( and the standard
-	// requires that you MUST send it if you sent is initially, in the BuildAuthUrl
+	// requires that you MUST send it if you sent is initially, in the buildAuthUrl
 	// above )
 
 	form := url.Values{}
@@ -103,7 +103,7 @@ func (p *ProviderConfig) FetchAccessToken(code, verifier string, ctx context.Con
 	defer resp.Body.Close()
 
 	// decode response to struct
-	var result TokenResponse
+	var result tokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}

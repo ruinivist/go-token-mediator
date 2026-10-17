@@ -1,6 +1,6 @@
 // This file tests the mediator's OAuth start, callback, and token storage flow.
 // It exercises the HTTP routes against the mock OAuth token endpoint.
-package main
+package mediator
 
 import (
 	"crypto/sha256"

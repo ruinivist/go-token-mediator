@@ -1,4 +1,4 @@
-package main
+package mediator
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 
 // this file is expected to be in same path in repo if you want
 // to run the tests
-var configPath = "config.example.json"
+var configPath = "../../config.example.json"
 
 func TestLoadConfig(t *testing.T) {
 	cfg, err := LoadConfig(configPath)
