@@ -199,6 +199,11 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 
 // handles /oauth/{provider}/callback
 func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	// no cache signal to browsers, this also signals that it should not be sent as a referrer
+	// to other pages
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+
 	providerName := r.PathValue("provider")
 	p, ok := s.cfg.Providers[providerName]
 	if !ok {
