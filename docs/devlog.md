@@ -223,3 +223,16 @@ C arrives and sees no marker and refreshes ( this is assuming tokens are TOO sho
 anyways be refreshing on each request ).
 C succeeds, and now B wakes up, sees token #1 ( it was passed by A ) when stored is different and fails.
 The fix is just to signal B and let it read from store.
+
+## Refresh token rotation
+
+When we make a refresh token request using the refresh token, if the request returns a refresh token, we
+update that as well. If there is no such token, we keep on using the current one till it can be used.
+
+## Session vs browser session expiry
+
+If you set an expires at the cookie, then browsers retain it across starts, with no expiry it's upto the browser and it might be lost when browser is closed.
+Max limit is 400 days for both chrom and firefox.
+
+A session on the backend is how long the session data is stored, on miss, it'll force reauth on client. Ideally you would want the same expiry times on both
+places.

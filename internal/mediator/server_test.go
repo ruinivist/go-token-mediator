@@ -499,3 +499,69 @@ func TestServer_Health(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 }
+
+func TestOAuthStart_SessionLifetime(t *testing.T) {
+	for _, tc := range []struct {
+		lifetime   string
+		wantCookie time.Duration
+	}{
+		{"1h", time.Hour},
+		{"9600h", 400 * 24 * time.Hour},
+	} {
+		t.Run(tc.lifetime, func(t *testing.T) {
+			cfg, err := LoadConfig(configPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.SessionLifetime = tc.lifetime
+			if err := validate(cfg); err != nil {
+				t.Fatal(err)
+			}
+			store := session.NewStore()
+			handler := NewServer(cfg, store).routes()
+			start := func(cookie *http.Cookie) *httptest.ResponseRecorder {
+				req := browserRequest("/oauth/github/start", "{}")
+				req.Header.Set("Origin", cfg.FeOrigin)
+				if cookie != nil {
+					req.AddCookie(cookie)
+				}
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("start status = %d: %s", rec.Code, rec.Body.String())
+				}
+				return rec
+			}
+			before := time.Now()
+			rec := start(nil)
+			after := time.Now()
+			cookies := rec.Result().Cookies()
+			if len(cookies) != 1 {
+				t.Fatalf("cookies = %d", len(cookies))
+			}
+			cookie := cookies[0]
+			// HTTP cookie timestamps have one-second precision.
+			if cookie.Expires.Before(before.Add(tc.wantCookie).Truncate(time.Second)) || cookie.Expires.After(after.Add(tc.wantCookie)) {
+				t.Fatalf("unexpected cookie expiry: %v", cookie.Expires)
+			}
+			id := session.ID(cookie.Value)
+			deadline, ok := store.ExpiresAt(id)
+			if !ok || deadline.Before(before.Add(cfg.sessionLifetime)) || deadline.After(after.Add(cfg.sessionLifetime)) {
+				t.Fatalf("unexpected session deadline: %v", deadline)
+			}
+			if !cookie.Expires.Equal(deadline.UTC().Truncate(time.Second)) {
+				t.Fatal("cookie does not match stored deadline")
+			}
+			if rec := start(cookie); len(rec.Result().Cookies()) != 0 {
+				t.Fatal("reusing session renewed cookie")
+			}
+			if after, ok := store.ExpiresAt(id); !ok || !after.Equal(deadline) {
+				t.Fatal("reusing session changed deadline")
+			}
+			store.Delete(id)
+			if rec := start(cookie); len(rec.Result().Cookies()) != 1 || rec.Result().Cookies()[0].Value == cookie.Value {
+				t.Fatal("unknown cookie did not create a new session")
+			}
+		})
+	}
+}

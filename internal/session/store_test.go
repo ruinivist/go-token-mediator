@@ -457,3 +457,74 @@ func TestStore_UpdateConnectionDelayedWaiterReadsLatest(t *testing.T) {
 		t.Fatalf("delayed waiter token = %q, error = %v; want second token", got.AccessToken, err)
 	}
 }
+
+func TestStore_SessionLifetime(t *testing.T) {
+	for _, lifetime := range []time.Duration{time.Hour, 400 * 24 * time.Hour} {
+		t.Run(lifetime.String(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				store := NewStore()
+				now := time.Now()
+				id, err := store.Create(lifetime)
+				if err != nil {
+					t.Fatal(err)
+				}
+				deadline, ok := store.ExpiresAt(id)
+				if !ok || !deadline.Equal(now.Add(lifetime)) {
+					t.Fatalf("unexpected deadline: %v", deadline)
+				}
+				if reused, created, err := store.GetOrCreate(id, 2*time.Hour); err != nil || created || reused != id {
+					t.Fatal("failed to reuse active session")
+				}
+				pending := PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}
+				if !store.SetPendingAuth(id, pending) || !store.SaveConnection(id, Connection{Provider: "mock", AccessToken: "old"}) {
+					t.Fatal("could not prepare active session")
+				}
+				if _, err := store.UpdateConnection(t.Context(), id, "mock", func(conn Connection) (*Connection, error) {
+					conn.AccessToken = "new"
+					return &conn, nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if after, ok := store.ExpiresAt(id); !ok || !after.Equal(deadline) {
+					t.Fatal("session reuse or connection update changed deadline")
+				}
+				time.Sleep(11 * time.Minute)
+				if _, ok := store.ConsumePendingAuth(id, "mock", "state"); ok {
+					t.Fatal("accepted expired authorization attempt")
+				}
+				pending.CreatedAt = time.Now()
+				if !store.SetPendingAuth(id, pending) {
+					t.Fatal("could not replace pending attempt")
+				}
+				if _, ok := store.ConsumePendingAuth(id, "mock", "state"); !ok {
+					t.Fatal("rejected live authorization attempt")
+				}
+				time.Sleep(lifetime - 11*time.Minute)
+				if store.Has(id) {
+					t.Fatal("incorrect session validity at finite deadline")
+				}
+				if _, ok := store.ExpiresAt(id); ok {
+					t.Fatal("incorrect deadline lookup")
+				}
+				if _, ok := store.GetConnection(id, "mock"); ok {
+					t.Fatal("incorrect connection access")
+				}
+				if store.SetPendingAuth(id, pending) || store.SaveConnection(id, Connection{Provider: "mock"}) {
+					t.Fatal("incorrect session write access")
+				}
+				_, err = store.UpdateConnection(t.Context(), id, "mock", func(conn Connection) (*Connection, error) { return &conn, nil })
+				if !errors.Is(err, ErrNoConnection) {
+					t.Fatalf("unexpected update error: %v", err)
+				}
+				store.cleanupExpired()
+				if _, exists := store.sessions[id]; exists {
+					t.Fatal("incorrect cleanup result")
+				}
+				store.Delete(id)
+				if store.Has(id) {
+					t.Fatal("session survived logout")
+				}
+			})
+		})
+	}
+}

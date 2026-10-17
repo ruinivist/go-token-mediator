@@ -147,13 +147,17 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		cookieID = session.ID(c.Value)
 	}
 
-	// TODO: this 24 hour on session expiry should be configurable in config
-	sessionID, created, err := s.store.GetOrCreate(cookieID, 24*time.Hour)
+	sessionID, created, err := s.store.GetOrCreate(cookieID, s.cfg.sessionLifetime)
 	if err != nil {
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
 		return
 	}
 	if created {
+		expiresAt, ok := s.store.ExpiresAt(sessionID)
+		if !ok {
+			http.Error(w, "invalid session", http.StatusBadRequest)
+			return
+		}
 		http.SetCookie(w, &http.Cookie{
 			Name:     sessionCookieName,
 			Value:    string(sessionID),
@@ -161,6 +165,7 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteLaxMode,
+			Expires:  expiresAt,
 		})
 	}
 

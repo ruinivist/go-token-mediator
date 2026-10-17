@@ -31,11 +31,13 @@ func TestOAuthFlow(t *testing.T) {
 		Scopes:       []string{"read:user", "user:email"},
 	}
 	cfg := &Config{
-		Host:         "127.0.0.1",
-		Port:         8080,
-		FeOrigin:     "https://frontend.example",
-		FeCompletion: "https://frontend.example/oauth/complete",
-		Providers:    map[string]ProviderConfig{"mock": provider},
+		SessionLifetime: "24h",
+		sessionLifetime: 24 * time.Hour,
+		Host:            "127.0.0.1",
+		Port:            8080,
+		FeOrigin:        "https://frontend.example",
+		FeCompletion:    "https://frontend.example/oauth/complete",
+		Providers:       map[string]ProviderConfig{"mock": provider},
 	}
 	store := session.NewStore()
 	handler := NewServer(cfg, store).routes()

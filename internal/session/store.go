@@ -30,6 +30,10 @@ type session struct {
 	updates     map[string]*connectionUpdate
 }
 
+func (s *session) expired(now time.Time) bool {
+	return !now.Before(s.expiresAt)
+}
+
 // latest oauth flow started for a session, valid for 10 mins
 type PendingAuth struct {
 	Provider     string
@@ -68,7 +72,7 @@ func NewStore() *Store {
 	}
 }
 
-// Add a new session with certain lifetime
+// Create adds a session with a fixed lifetime.
 func (s *Store) Create(lifetime time.Duration) (ID, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -97,7 +101,18 @@ func (s *Store) Has(id ID) bool {
 	defer s.mtx.RUnlock()
 
 	sess, ok := s.sessions[id]
-	return ok && !time.Now().After(sess.expiresAt)
+	return ok && !sess.expired(time.Now())
+}
+
+// ExpiresAt returns an active session's deadline.
+func (s *Store) ExpiresAt(id ID) (time.Time, bool) {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	sess, ok := s.sessions[id]
+	if !ok || sess.expired(time.Now()) {
+		return time.Time{}, false
+	}
+	return sess.expiresAt, true
 }
 
 // GetConnection returns a detached connection value from an active session.
@@ -106,7 +121,7 @@ func (s *Store) GetConnection(id ID, provider string) (Connection, bool) {
 	defer s.mtx.RUnlock()
 
 	sess, ok := s.sessions[id]
-	if !ok || time.Now().After(sess.expiresAt) {
+	if !ok || sess.expired(time.Now()) {
 		return Connection{}, false
 	}
 	connection, ok := sess.connections[provider]
@@ -146,7 +161,7 @@ func (s *Store) SetPendingAuth(id ID, pending PendingAuth) bool {
 	defer s.mtx.Unlock()
 
 	sess, ok := s.sessions[id]
-	if !ok || time.Now().After(sess.expiresAt) {
+	if !ok || sess.expired(time.Now()) {
 		return false
 	}
 	sess.pendingAuth = &pending
@@ -159,7 +174,7 @@ func (s *Store) ConsumePendingAuth(id ID, provider, state string) (*PendingAuth,
 	defer s.mtx.Unlock()
 
 	sess, ok := s.sessions[id]
-	if !ok || time.Now().After(sess.expiresAt) || sess.pendingAuth == nil {
+	if !ok || sess.expired(time.Now()) || sess.pendingAuth == nil {
 		return nil, false
 	}
 
@@ -179,7 +194,7 @@ func (s *Store) SaveConnection(id ID, connection Connection) bool {
 	defer s.mtx.Unlock()
 
 	sess, ok := s.sessions[id]
-	if !ok || time.Now().After(sess.expiresAt) {
+	if !ok || sess.expired(time.Now()) {
 		return false
 	}
 	sess.connections[connection.Provider] = &connection
@@ -196,7 +211,7 @@ func (s *Store) UpdateConnection(ctx context.Context, id ID, provider string, up
 
 	// if the session itself expired ask to reauth
 	sess, ok := s.sessions[id]
-	if !ok || time.Now().After(sess.expiresAt) {
+	if !ok || sess.expired(time.Now()) {
 		s.mtx.Unlock()
 		return Connection{}, ErrNoConnection
 	}
@@ -231,7 +246,7 @@ func (s *Store) UpdateConnection(ctx context.Context, id ID, provider string, up
 	// The callback's pointer controls storage; an error alone does not delete credentials.
 	flight.err = err
 	switch {
-	case s.sessions[id] != sess || time.Now().After(sess.expiresAt) || sess.connections[provider] != original:
+	case s.sessions[id] != sess || sess.expired(time.Now()) || sess.connections[provider] != original:
 		// A refresh must not restore a deleted session or overwrite a reconnect.
 		flight.err = ErrNoConnection
 	case connection == nil:
@@ -253,7 +268,7 @@ func (s *Store) connectionUpdateResult(id ID, provider string, sess *session, fl
 	// Deletion or reconnect may have happened between completion and a waiter waking.
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
-	if s.sessions[id] != sess || time.Now().After(sess.expiresAt) {
+	if s.sessions[id] != sess || sess.expired(time.Now()) {
 		return Connection{}, ErrNoConnection
 	}
 	if flight.err != nil {
@@ -293,7 +308,7 @@ func (s *Store) cleanupExpired() {
 
 	now := time.Now()
 	for id, sess := range s.sessions {
-		if now.After(sess.expiresAt) {
+		if sess.expired(now) {
 			// this delete while iteration is perfectly valid in go, unlike
 			// some other langs
 			delete(s.sessions, id)

@@ -5,16 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 )
 
 // ==== models =====
 
 type Config struct {
-	Host         string                    `json:"host"`
-	Port         int                       `json:"port"`
-	FeOrigin     string                    `json:"frontend_origin_url"`
-	FeCompletion string                    `json:"frontend_completion_url"`
-	Providers    map[string]ProviderConfig `json:"providers"`
+	Host            string                    `json:"host"`
+	Port            int                       `json:"port"`
+	FeOrigin        string                    `json:"frontend_origin_url"`
+	FeCompletion    string                    `json:"frontend_completion_url"`
+	Providers       map[string]ProviderConfig `json:"providers"`
+	SessionLifetime string                    `json:"session_lifetime"`
+	sessionLifetime time.Duration
 }
 
 type ProviderConfig struct {
@@ -55,6 +58,11 @@ func LoadConfig(path string) (*Config, error) {
 // Check no keys are missing. Config does NOT default to any values
 // everything MUST be explicit
 func validate(c *Config) error {
+	lifetime, err := time.ParseDuration(c.SessionLifetime)
+	if err != nil || lifetime < time.Second || lifetime > 400*24*time.Hour {
+		return errors.New("'session_lifetime' must be a duration between 1s and 9600h (400 days)")
+	}
+	c.sessionLifetime = lifetime
 	if c.Port == 0 {
 		return errors.New("missing or zero 'port'")
 	}

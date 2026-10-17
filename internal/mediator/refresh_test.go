@@ -56,10 +56,14 @@ func TestProviderToken_Refresh(t *testing.T) {
 			}))
 			defer provider.Close()
 			store, id, handler := refreshFixture(t, provider.URL, tc.lifetime, !tc.noRefresh)
+			deadline, _ := store.ExpiresAt(id)
 			req := browserRequest("/oauth/mock/token", "{}")
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
+			if after, ok := store.ExpiresAt(id); !ok || !after.Equal(deadline) {
+				t.Fatal("token retrieval changed session deadline")
+			}
 			if rec.Code != 200 {
 				t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 			}
