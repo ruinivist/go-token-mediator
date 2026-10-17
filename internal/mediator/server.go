@@ -218,6 +218,10 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid auth state", http.StatusBadRequest)
 		return
 	}
+	if r.URL.Query().Get("error") != "" || code == "" {
+		http.Error(w, "authorization denied or missing code", http.StatusBadRequest)
+		return
+	}
 
 	// now use this code to fetch the access token from the provider
 

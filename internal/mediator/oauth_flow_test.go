@@ -211,7 +211,12 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 		body       string
 		timeout    bool
 		wantStatus int
+		query      string
+		noExchange bool
 	}{
+		{name: "denied consent", query: "error=access_denied&error_description=private-details&state=state", noExchange: true, wantStatus: 400},
+		{name: "error with code", query: "error=access_denied&code=code&state=state", noExchange: true, wantStatus: 400},
+		{name: "missing code", query: "state=state", noExchange: true, wantStatus: 400},
 		{name: "empty access token", status: 200, body: `{"access_token":"","token_type":"Bearer"}`, wantStatus: 502},
 		{name: "malformed JSON", status: 200, body: `{`, wantStatus: 502},
 		{name: "OAuth error with 200", status: 200, body: `{"error":"invalid_client","error_description":"private-secret"}`, wantStatus: 502},
@@ -219,7 +224,13 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 		{name: "timeout", timeout: true, wantStatus: 504},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			calls := make(chan struct{}, 1)
 			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls <- struct{}{}
+				if tc.noExchange {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
 				if tc.timeout {
 					io.Copy(io.Discard, r.Body)
 					<-r.Context().Done()
@@ -239,7 +250,11 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 				t.Fatal("failed to prepare reconnect")
 			}
 			cfg := &Config{Providers: map[string]ProviderConfig{"mock": {TokenUrl: provider.URL}}}
-			req := httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?code=code&state=state", nil)
+			query := tc.query
+			if query == "" {
+				query = "code=code&state=state"
+			}
+			req := httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?"+query, nil)
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 			if tc.timeout {
 				ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
@@ -248,6 +263,12 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			NewServer(cfg, store).routes().ServeHTTP(rec, req)
+			if tc.noExchange && len(calls) != 0 {
+				t.Fatal("invalid callback contacted the token endpoint")
+			}
+			if _, ok := store.ConsumePendingAuth(id, "mock", "state"); ok {
+				t.Fatal("failed callback left authorization attempt reusable")
+			}
 			if rec.Code != tc.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tc.wantStatus, rec.Body.String())
 			}
