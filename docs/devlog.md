@@ -186,3 +186,13 @@ Skipping auto-refresh handling. If there is an expiry it sends it back. We also 
 
 This is the point where I started to let codex do some of the impl, it's useful to remind me of cases that I could not have caught.
 For example, the read timeout for decoding json bodies, could've been a DOS if left unchecked.
+
+## Same site modes
+
+We set the same site mode in `setSessionCookie` in helpers. This table explains what is allowed under lax.
+
+| Frontend → mediator                                      | Relationship                 | Current `SameSite=Lax` cookie     |
+| -------------------------------------------------------- | ---------------------------- | --------------------------------- |
+| `http://localhost:3000` → `http://localhost:8080`        | Different origins, same site | Compatible                        |
+| `https://app.example.com` → `https://auth.example.com`   | Different origins, same site | Compatible                        |
+| `https://app.example.com` → `https://mediator.other.com` | Different sites              | Blocked on frontend `fetch` calls |

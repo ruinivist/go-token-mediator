@@ -76,13 +76,29 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
-	mux.HandleFunc("POST /oauth/{provider}/start", s.validateBrowserPost(s.providerOAuthStart))
+	mux.HandleFunc("POST /oauth/{provider}/start", s.allowBrowserOrigin(s.validateBrowserPost(s.providerOAuthStart)))
+	mux.HandleFunc("OPTIONS /oauth/{provider}/start", s.allowBrowserOrigin(s.providerPreflight))
 	mux.HandleFunc("GET /oauth/{provider}/callback", s.providerOAuthCallback)
-	mux.HandleFunc("POST /oauth/{provider}/token", s.validateBrowserPost(s.providerToken))
+	mux.HandleFunc("POST /oauth/{provider}/token", s.allowBrowserOrigin(s.validateBrowserPost(s.providerToken)))
+	mux.HandleFunc("OPTIONS /oauth/{provider}/token", s.allowBrowserOrigin(s.providerPreflight))
 	return mux
 }
 
 // ==== handlers ====
+
+func (s *Server) providerPreflight(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Access-Control-Request-Method") != http.MethodPost {
+		writeJSONError(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	if _, ok := s.cfg.Providers[r.PathValue("provider")]; !ok {
+		writeJSONError(w, "unknown_provider", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Access-Control-Allow-Methods", http.MethodPost)
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-OAuth-Bridge")
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // handles /heatlth
 func healthHandler(w http.ResponseWriter, r *http.Request) {

@@ -19,15 +19,26 @@ func writeJSONError(w http.ResponseWriter, code string, status int) {
 	json.NewEncoder(w).Encode(map[string]string{"error": code})
 }
 
-// validateBrowserPost checks the browser origin, CSRF header, and empty JSON body before calling the handler.
+// allowBrowserOrigin grants credentialed CORS only to the configured frontend.
+func (s *Server) allowBrowserOrigin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Origin")
+		w.Header().Set("Cache-Control", "no-store")
+		if r.Header.Get("Origin") == "" || r.Header.Get("Origin") != s.cfg.FeOrigin {
+			writeJSONError(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Access-Control-Allow-Origin", s.cfg.FeOrigin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		next(w, r)
+	}
+}
+
+// validateBrowserPost checks the CSRF header and empty JSON body before calling the handler.
 func (s *Server) validateBrowserPost(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Return JSON and prevent browsers or proxies from caching sensitive responses.
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-
-		// Require the configured frontend origin and custom CSRF header.
-		if r.Header.Get("Origin") == "" || r.Header.Get("Origin") != s.cfg.FeOrigin || r.Header.Get("X-OAuth-Bridge") != "1" {
+		if r.Header.Get("X-OAuth-Bridge") != "1" {
 			writeJSONError(w, "forbidden", http.StatusForbidden)
 			return
 		}

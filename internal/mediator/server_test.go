@@ -97,6 +97,9 @@ func TestProviderToken_Response(t *testing.T) {
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 			rec := httptest.NewRecorder()
 			NewServer(cfg, store).routes().ServeHTTP(rec, req)
+			if rec.Header().Get("Access-Control-Allow-Origin") != cfg.FeOrigin || rec.Header().Get("Access-Control-Allow-Credentials") != "true" {
+				t.Fatal("missing credentialed CORS headers")
+			}
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 			}
@@ -229,6 +232,71 @@ func TestValidateBrowserPost_Validation(t *testing.T) {
 				if rec.Header().Get("Cache-Control") != "no-store" {
 					t.Fatal("missing no-store header")
 				}
+				allowedOrigin, allowedCredentials := cfg.FeOrigin, "true"
+				if tc.header == "Origin" {
+					allowedOrigin, allowedCredentials = "", ""
+				}
+				if rec.Header().Get("Access-Control-Allow-Origin") != allowedOrigin || rec.Header().Get("Access-Control-Allow-Credentials") != allowedCredentials {
+					t.Fatal("unexpected CORS permissions")
+				}
+				if rec.Header().Get("Vary") != "Origin" {
+					t.Fatal("missing Vary: Origin")
+				}
+			})
+		}
+	}
+}
+
+func TestProviderPreflight(t *testing.T) {
+	for _, route := range []string{"start", "token"} {
+		for _, tc := range []struct {
+			name, origin, method, provider, headers string
+			status                                  int
+		}{
+			{name: "valid", origin: "https://frontend.example", method: "POST", provider: "mock", headers: "content-type, x-oauth-bridge", status: 204},
+			{name: "no requested headers", origin: "https://frontend.example", method: "POST", provider: "mock", status: 204},
+			{name: "extra requested header", origin: "https://frontend.example", method: "POST", provider: "mock", headers: "X-Untrusted", status: 204},
+			{name: "missing origin", method: "POST", provider: "mock", status: 403},
+			{name: "wrong origin", origin: "https://evil.example", method: "POST", provider: "mock", status: 403},
+			{name: "missing method", origin: "https://frontend.example", provider: "mock", status: 403},
+			{name: "wrong method", origin: "https://frontend.example", method: "DELETE", provider: "mock", status: 403},
+			{name: "unknown provider", origin: "https://frontend.example", method: "POST", provider: "unknown", status: 404},
+		} {
+			t.Run(route+"/"+tc.name, func(t *testing.T) {
+				cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
+				req := httptest.NewRequest(http.MethodOptions, "/oauth/"+tc.provider+"/"+route, nil)
+				req.Header.Set("Origin", tc.origin)
+				req.Header.Set("Access-Control-Request-Method", tc.method)
+				req.Header.Set("Access-Control-Request-Headers", tc.headers)
+				rec := httptest.NewRecorder()
+				// No store is needed: preflight must never touch sessions or start OAuth.
+				NewServer(cfg, nil).routes().ServeHTTP(rec, req)
+				if rec.Code != tc.status {
+					t.Fatalf("status = %d, want %d, body = %s", rec.Code, tc.status, rec.Body.String())
+				}
+				allowedOrigin, allowedCredentials := "", ""
+				if tc.origin == cfg.FeOrigin {
+					allowedOrigin, allowedCredentials = cfg.FeOrigin, "true"
+				}
+				if rec.Header().Get("Access-Control-Allow-Origin") != allowedOrigin || rec.Header().Get("Access-Control-Allow-Credentials") != allowedCredentials {
+					t.Fatal("unexpected CORS permissions")
+				}
+				if rec.Header().Get("Vary") != "Origin" || rec.Header().Get("Cache-Control") != "no-store" {
+					t.Fatal("missing cache controls")
+				}
+				if len(rec.Result().Cookies()) != 0 {
+					t.Fatal("preflight must not set a cookie")
+				}
+				if tc.status == http.StatusNoContent {
+					if rec.Body.Len() != 0 {
+						t.Fatal("successful preflight must have no body")
+					}
+					if rec.Header().Get("Access-Control-Allow-Methods") != "POST" || rec.Header().Get("Access-Control-Allow-Headers") != "Content-Type, X-OAuth-Bridge" {
+						t.Fatal("preflight must advertise only the fixed method and header allowlists")
+					}
+				} else if rec.Header().Get("Access-Control-Allow-Methods") != "" || rec.Header().Get("Access-Control-Allow-Headers") != "" {
+					t.Fatal("rejected preflight must not advertise methods or headers")
+				}
 			})
 		}
 	}
@@ -244,7 +312,7 @@ func TestProviderToken_Routing(t *testing.T) {
 	}{
 		{http.MethodPost, "/oauth/unknown/token", http.StatusNotFound},
 		{http.MethodGet, "/oauth/mock/token", http.StatusMethodNotAllowed},
-		{http.MethodOptions, "/oauth/mock/token", http.StatusMethodNotAllowed},
+		{http.MethodDelete, "/oauth/mock/token", http.StatusMethodNotAllowed},
 	} {
 		req := browserRequest(tc.path, "{}")
 		req.Method = tc.method
