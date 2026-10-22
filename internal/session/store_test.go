@@ -365,7 +365,7 @@ func TestStore_UpdateConnectionCoalesces(t *testing.T) {
 }
 
 func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
-	for _, action := range []string{"delete", "expire", "reconnect"} {
+	for _, action := range []string{"delete", "expire", "reconnect", "rotate"} {
 		t.Run(action, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				store := NewStore()
@@ -385,6 +385,7 @@ func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
 					result <- err
 				}()
 				synctest.Wait()
+				var rotatedID ID
 				switch action {
 				case "delete":
 					store.Delete(id)
@@ -392,6 +393,11 @@ func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
 					time.Sleep(2 * time.Minute)
 				case "reconnect":
 					store.SaveConnection(id, Connection{Provider: "mock", AccessToken: "reconnected"})
+				case "rotate":
+					rotatedID, err = store.RotateId(id)
+					if err != nil {
+						t.Fatal(err)
+					}
 				}
 				close(release)
 				if err := <-result; !errors.Is(err, ErrNoConnection) {
@@ -404,6 +410,11 @@ func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
 					}
 				} else if ok {
 					t.Fatal("restored inactive session")
+				}
+				if action == "rotate" {
+					if conn, ok := store.GetConnection(rotatedID, "mock"); !ok || conn.AccessToken != "old" {
+						t.Fatal("in-flight update changed the rotated session")
+					}
 				}
 			})
 		})

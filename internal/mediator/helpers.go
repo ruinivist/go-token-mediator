@@ -9,6 +9,8 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"time"
+	"token-mediator/internal/session"
 )
 
 func writeJSONError(w http.ResponseWriter, code string, status int) {
@@ -107,3 +109,15 @@ func generatePKCE() (verifier, challenge string, err error) {
 }
 
 const sessionCookieName = "__Host-oauth_bridge"
+
+func makeCookie(sessionID session.ID, expiresAt time.Time) *http.Cookie {
+	return &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    string(sessionID),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  expiresAt,
+	}
+}

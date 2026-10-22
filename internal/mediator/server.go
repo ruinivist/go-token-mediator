@@ -158,15 +158,7 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid session", http.StatusBadRequest)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{
-			Name:     sessionCookieName,
-			Value:    string(sessionID),
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteLaxMode,
-			Expires:  expiresAt,
-		})
+		http.SetCookie(w, makeCookie(sessionID, expiresAt))
 	}
 
 	state, err := generateRandomString(32)
@@ -271,6 +263,22 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid session", http.StatusBadRequest)
 		return
 	}
+
+	// See "Session ID rotation" in devlog
+	// before a completion set a new session id cookie
+	// remember, this is a session expiry not a token expiry
+	newId, err := s.store.RotateId(sessId)
+	if err != nil {
+		http.Error(w, "invalid session", http.StatusBadRequest)
+		return
+	}
+
+	expiresAt, ok := s.store.ExpiresAt(newId)
+	if !ok {
+		http.Error(w, "invalid session", http.StatusBadRequest)
+		return
+	}
+	http.SetCookie(w, makeCookie(newId, expiresAt))
 	http.Redirect(w, r, s.cfg.FeCompletion, http.StatusSeeOther)
 }
 

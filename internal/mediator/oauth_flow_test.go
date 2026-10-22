@@ -133,6 +133,22 @@ func TestOAuthFlow(t *testing.T) {
 	if got := callback.Header().Get("Location"); got != cfg.FeCompletion {
 		t.Errorf("completion redirect = %q, want %q", got, cfg.FeCompletion)
 	}
+	cookies := callback.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != sessionCookieName || cookies[0].Value == "" || cookies[0].Value == cookie.Value {
+		t.Fatal("callback did not rotate the session cookie")
+	}
+	if store.Has(sessionID) {
+		t.Fatal("rotation left the old session ID active")
+	}
+	oldTokenRequest := browserRequest("/oauth/mock/token", "{}")
+	oldTokenRequest.AddCookie(cookie)
+	oldToken := httptest.NewRecorder()
+	handler.ServeHTTP(oldToken, oldTokenRequest)
+	if oldToken.Code != http.StatusUnauthorized {
+		t.Fatalf("old cookie token status = %d, want 401", oldToken.Code)
+	}
+	cookie = cookies[0]
+	sessionID = session.ID(cookie.Value)
 	var form url.Values
 	select {
 	case form = <-tokenRequests:
@@ -201,6 +217,50 @@ func TestOAuthFlow(t *testing.T) {
 	case <-tokenRequests:
 		t.Fatal("replayed callback contacted the token endpoint")
 	default:
+	}
+}
+
+func TestOAuthCallback_RotationPreservesSession(t *testing.T) {
+	provider, _ := newMockOAuthServer(t)
+	store, id, handler := refreshFixture(t, provider.URL+"/token", time.Hour, true)
+	deadline, ok := store.ExpiresAt(id)
+	if !ok || !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
+		t.Fatal("could not prepare session")
+	}
+	req := httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?code=code&state=state", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
+	callback := httptest.NewRecorder()
+	handler.ServeHTTP(callback, req)
+	if callback.Code != http.StatusSeeOther {
+		t.Fatalf("callback status = %d: %s", callback.Code, callback.Body.String())
+	}
+	cookies := callback.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Value == "" || cookies[0].Value == string(id) {
+		t.Fatal("callback did not issue a new session ID")
+	}
+	cookie := cookies[0]
+	newID := session.ID(cookie.Value)
+	if store.Has(id) {
+		t.Fatal("old session ID still works")
+	}
+	if after, ok := store.ExpiresAt(newID); !ok || !after.Equal(deadline) {
+		t.Fatal("rotation changed the session deadline")
+	}
+	if !cookie.Expires.Equal(deadline.UTC().Truncate(time.Second)) {
+		t.Fatal("cookie expiry does not match the original session deadline")
+	}
+	if !cookie.Secure || !cookie.HttpOnly || cookie.Path != "/" || cookie.Domain != "" || cookie.SameSite != http.SameSiteLaxMode {
+		t.Fatal("rotation changed cookie protections")
+	}
+	if conn, ok := store.GetConnection(newID, "other"); !ok || conn.AccessToken != "unrelated" {
+		t.Fatal("rotation lost another provider connection")
+	}
+	logout := browserRequest("/session/logout", "{}")
+	logout.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, logout)
+	if rec.Code != http.StatusNoContent || store.Has(newID) || store.Has(id) {
+		t.Fatal("logout did not invalidate the rotated session")
 	}
 }
 

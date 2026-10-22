@@ -74,11 +74,10 @@ func NewStore() *Store {
 
 // Create adds a session with a fixed lifetime.
 func (s *Store) Create(lifetime time.Duration) (ID, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to read random bytes, err = %w", err)
+	id, err := generateID()
+	if err != nil {
+		return "", err
 	}
-	id := ID(base64.RawURLEncoding.EncodeToString(b))
 
 	sess := &session{
 		expiresAt:   time.Now().Add(lifetime),
@@ -151,6 +150,27 @@ func (s *Store) Delete(id ID) {
 	defer s.mtx.Unlock()
 
 	delete(s.sessions, id)
+}
+
+func (s *Store) RotateId(id ID) (ID, error) {
+	newId, err := generateID()
+	if err != nil {
+		return "", err
+	}
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	// this is called in a context in which it should never be expired but let's
+	// keep the check
+	sess, ok := s.sessions[id]
+	if !ok || sess.expired(time.Now()) {
+		return "", errors.New("Trying to rotate id for invalid session")
+	}
+
+	s.sessions[newId] = sess
+	delete(s.sessions, id)
+	return newId, nil
 }
 
 // ---------- OAuth state ----------
@@ -314,4 +334,14 @@ func (s *Store) cleanupExpired() {
 			delete(s.sessions, id)
 		}
 	}
+}
+
+// ---------- helpers ------------
+
+func generateID() (ID, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to read random bytes, err = %w", err)
+	}
+	return ID(base64.RawURLEncoding.EncodeToString(b)), nil
 }
