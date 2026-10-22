@@ -15,7 +15,7 @@ import (
 // ---------- Session lifecycle ----------
 
 func TestStore_CRUD(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 
 	// create
 	id, err := store.Create(1 * time.Hour)
@@ -40,8 +40,65 @@ func TestStore_CRUD(t *testing.T) {
 	}
 }
 
+func TestStore_SessionLimit(t *testing.T) {
+	store := NewStore(1)
+	id, err := store.Create(time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cookieID := range []ID{"", "unknown"} {
+		if _, _, err := store.GetOrCreate(cookieID, time.Hour); !errors.Is(err, ErrSessionLimit) {
+			t.Fatalf("create at capacity: error = %v", err)
+		}
+	}
+	if reused, created, err := store.GetOrCreate(id, time.Hour); err != nil || created || reused != id {
+		t.Fatal("could not reuse existing session at capacity")
+	}
+	newID, _, err := store.CompleteAuth(id, Connection{Provider: "mock", AccessToken: "token"})
+	if err != nil || !store.Has(newID) {
+		t.Fatal("could not complete authorization at capacity")
+	}
+	if _, err := store.Create(time.Hour); !errors.Is(err, ErrSessionLimit) {
+		t.Fatalf("rotation changed capacity: error = %v", err)
+	}
+	store.Delete(newID)
+	if _, err := store.Create(-time.Second); err != nil {
+		t.Fatalf("logout did not free capacity: %v", err)
+	}
+	store.cleanupExpired()
+	if _, err := store.Create(time.Hour); err != nil {
+		t.Fatalf("cleanup did not free capacity: %v", err)
+	}
+}
+
+func TestStore_ConcurrentSessionLimit(t *testing.T) {
+	const limit, requests = 4, 32
+	store := NewStore(limit)
+	results := make(chan error, requests)
+	var workers sync.WaitGroup
+	for range requests {
+		workers.Go(func() {
+			_, err := store.Create(time.Hour)
+			results <- err
+		})
+	}
+	workers.Wait()
+	close(results)
+	created := 0
+	for err := range results {
+		if err == nil {
+			created++
+		} else if !errors.Is(err, ErrSessionLimit) {
+			t.Fatal(err)
+		}
+	}
+	if created != limit || len(store.sessions) != limit {
+		t.Fatalf("created %d sessions, stored %d, limit %d", created, len(store.sessions), limit)
+	}
+}
+
 func TestStore_Cleanup(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 
 	// create
 	id, err := store.Create(-1 * time.Second)
@@ -74,7 +131,7 @@ func TestStore_Cleanup(t *testing.T) {
 }
 
 func TestStore_GetOrCreate(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 
 	// 1. When empty/missing ID, creates new session
 	id1, created, err := store.GetOrCreate("", 1*time.Hour)
@@ -104,7 +161,7 @@ func TestStore_GetOrCreate(t *testing.T) {
 
 func TestStore_CompleteAuth(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		store := NewStore()
+		store := NewStore(1000)
 		id, err := store.Create(time.Hour)
 		if err != nil {
 			t.Fatal(err)
@@ -140,7 +197,7 @@ func TestStore_CompleteAuth(t *testing.T) {
 func TestStore_CompleteAuthRejectsInactiveSessions(t *testing.T) {
 	for _, action := range []string{"missing", "expired", "deleted"} {
 		t.Run(action, func(t *testing.T) {
-			store := NewStore()
+			store := NewStore(1000)
 			id := ID("unknown")
 			if action != "missing" {
 				lifetime := time.Hour
@@ -165,7 +222,7 @@ func TestStore_CompleteAuthRejectsInactiveSessions(t *testing.T) {
 }
 
 func TestStore_OAuthStateTransitions(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 	id, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +273,7 @@ func TestStore_OAuthStateTransitions(t *testing.T) {
 }
 
 func TestStore_ConnectionCopies(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 	id, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -243,7 +300,7 @@ func TestStore_ConnectionCopies(t *testing.T) {
 
 // Checks that inactive sessions reject reads and writes, even with a saved connection.
 func TestStore_InactiveSessions(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 	expiredID, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -281,7 +338,7 @@ func TestStore_InactiveSessions(t *testing.T) {
 // ---------- Concurrent access ----------
 
 func TestStore_ConcurrentAccess(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 	id, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -321,7 +378,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 }
 
 func TestStore_ConcurrentConsumePendingAuth(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 	id, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -358,7 +415,7 @@ func TestStore_ConcurrentConsumePendingAuth(t *testing.T) {
 func TestStore_UpdateConnectionCoalesces(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		synctest.Test(t, func(t *testing.T) {
-			store := NewStore()
+			store := NewStore(1000)
 			id, err := store.Create(time.Hour)
 			if err != nil {
 				t.Fatal(err)
@@ -430,7 +487,7 @@ func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
 	for _, action := range []string{"delete", "expire", "reconnect"} {
 		t.Run(action, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				store := NewStore()
+				store := NewStore(1000)
 				id, err := store.Create(time.Minute)
 				if err != nil {
 					t.Fatal(err)
@@ -476,7 +533,7 @@ func TestStore_UpdateConnectionFollowsAuthCompletion(t *testing.T) {
 	for _, action := range []string{"refresh", "rejected", "delete", "expire", "reconnect"} {
 		t.Run(action, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				store := NewStore()
+				store := NewStore(1000)
 				id, err := store.Create(time.Minute)
 				if err != nil {
 					t.Fatal(err)
@@ -558,7 +615,7 @@ func TestStore_UpdateConnectionFollowsAuthCompletion(t *testing.T) {
 }
 
 func TestStore_UpdateConnectionDelayedWaiterReadsLatest(t *testing.T) {
-	store := NewStore()
+	store := NewStore(1000)
 	id, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -609,7 +666,7 @@ func TestStore_SessionLifetime(t *testing.T) {
 	for _, lifetime := range []time.Duration{time.Hour, 400 * 24 * time.Hour} {
 		t.Run(lifetime.String(), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				store := NewStore()
+				store := NewStore(1000)
 				now := time.Now()
 				id, err := store.Create(lifetime)
 				if err != nil {

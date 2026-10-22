@@ -277,7 +277,7 @@ func browserTokenRequest(id session.ID) *http.Request {
 
 func refreshFixture(t *testing.T, tokenURL string, lifetime time.Duration, refresh bool) (*session.Store, session.ID, http.Handler) {
 	t.Helper()
-	store := session.NewStore()
+	store := session.NewStore(1000)
 	id, err := store.Create(time.Hour)
 	if err != nil {
 		t.Fatal(err)

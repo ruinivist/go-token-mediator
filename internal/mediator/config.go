@@ -17,6 +17,7 @@ type Config struct {
 	FeCompletion    string                    `json:"frontend_completion_url"`
 	Providers       map[string]ProviderConfig `json:"providers"`
 	SessionLifetime string                    `json:"session_lifetime"`
+	SessionLimit    int                       `json:"session_limit"`
 	sessionLifetime time.Duration
 }
 
@@ -58,6 +59,9 @@ func LoadConfig(path string) (*Config, error) {
 // Check no keys are missing. Config does NOT default to any values
 // everything MUST be explicit
 func validate(c *Config) error {
+	if c.SessionLimit <= 0 {
+		return errors.New("'session_limit' must be a positive integer")
+	}
 	lifetime, err := time.ParseDuration(c.SessionLifetime)
 	if err != nil || lifetime < time.Second || lifetime > 400*24*time.Hour {
 		return errors.New("'session_lifetime' must be a duration between 1s and 9600h (400 days)")

@@ -154,7 +154,7 @@ func TestSessionLogout_InFlightOAuth(t *testing.T) {
 // Checks that a client cannot hold a POST open by leaving its body unfinished.
 func TestServer_UnfinishedBody(t *testing.T) {
 	cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
-	server := NewServer(cfg, session.NewStore())
+	server := NewServer(cfg, session.NewStore(1000))
 	if server.httpServer.ReadTimeout <= 0 {
 		t.Fatal("server must have a request read timeout")
 	}
@@ -201,7 +201,7 @@ func TestProviderToken_Response(t *testing.T) {
 		{name: "less than thirty seconds", lifetime: 15 * time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			store := session.NewStore()
+			store := session.NewStore(1000)
 			id, err := store.Create(time.Hour)
 			if err != nil {
 				t.Fatal(err)
@@ -276,7 +276,7 @@ func TestProviderToken_Response(t *testing.T) {
 func TestProviderToken_Unauthorized(t *testing.T) {
 	for _, name := range []string{"missing cookie", "unknown cookie", "expired session", "deleted session", "missing connection", "other provider only", "expired token"} {
 		t.Run(name, func(t *testing.T) {
-			store := session.NewStore()
+			store := session.NewStore(1000)
 			lifetime := time.Hour
 			if name == "expired session" {
 				lifetime = -time.Second
@@ -347,7 +347,7 @@ func TestValidateBrowserPost_Validation(t *testing.T) {
 			{name: "charset and whitespace", body: " {} \n", header: "Content-Type", value: "application/json; charset=utf-8", status: map[string]int{"start": 200, "token": 401, "logout": 204}[route]},
 		} {
 			t.Run(route+"/"+tc.name, func(t *testing.T) {
-				store := session.NewStore()
+				store := session.NewStore(1000)
 				cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {AuthUrl: "https://provider.example/authorize"}}}
 				path := "/oauth/mock/" + route
 				if route == "logout" {
@@ -456,7 +456,7 @@ func TestProviderPreflight(t *testing.T) {
 // Checks that unknown providers return 404 and unsupported HTTP methods return 405.
 func TestProviderToken_Routing(t *testing.T) {
 	cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
-	handler := NewServer(cfg, session.NewStore()).routes()
+	handler := NewServer(cfg, session.NewStore(1000)).routes()
 	for _, tc := range []struct {
 		method, path string
 		status       int
@@ -484,7 +484,7 @@ func TestServer_Health(t *testing.T) {
 		t.Fatalf("failed to load fixture config: %v", err)
 	}
 
-	store := session.NewStore()
+	store := session.NewStore(1000)
 	srv := NewServer(cfg, store)
 
 	// Simulate GET /health request
@@ -497,6 +497,41 @@ func TestServer_Health(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestOAuthStart_SessionLimit(t *testing.T) {
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.SessionLimit = 1
+	store := session.NewStore(cfg.SessionLimit)
+	handler := NewServer(cfg, store).routes()
+	start := func(cookie *http.Cookie) *httptest.ResponseRecorder {
+		req := browserRequest("/oauth/github/start", "{}")
+		req.Header.Set("Origin", cfg.FeOrigin)
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+	first := start(nil)
+	if first.Code != http.StatusOK || len(first.Result().Cookies()) != 1 {
+		t.Fatalf("first start = %d: %s", first.Code, first.Body.String())
+	}
+	cookie := first.Result().Cookies()[0]
+	full := start(nil)
+	if full.Code != http.StatusTooManyRequests || full.Body.String() != "{\"error\":\"session_limit_reached\"}\n" {
+		t.Fatalf("start at capacity = %d: %s", full.Code, full.Body.String())
+	}
+	if len(full.Result().Cookies()) != 0 || full.Header().Get("Access-Control-Allow-Origin") != cfg.FeOrigin || full.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("capacity rejection set a cookie or lost browser response protections")
+	}
+	if reused := start(cookie); reused.Code != http.StatusOK || len(reused.Result().Cookies()) != 0 {
+		t.Fatalf("existing session at capacity = %d: %s", reused.Code, reused.Body.String())
 	}
 }
 
@@ -517,7 +552,7 @@ func TestOAuthStart_SessionLifetime(t *testing.T) {
 			if err := validate(cfg); err != nil {
 				t.Fatal(err)
 			}
-			store := session.NewStore()
+			store := session.NewStore(1000)
 			handler := NewServer(cfg, store).routes()
 			start := func(cookie *http.Cookie) *httptest.ResponseRecorder {
 				req := browserRequest("/oauth/github/start", "{}")

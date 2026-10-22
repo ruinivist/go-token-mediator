@@ -9,5 +9,10 @@ token exchange.
 
 - sqlite ( as worse case they'll have to login again )
 
+Configuration requires a positive `session_limit`; the example sets it to `1000`.
+At the limit, new sessions receive HTTP `429` with `session_limit_reached`.
+Existing sessions keep working and are never evicted. Logout frees a slot immediately;
+expired sessions free slots when the periodic cleanup runs (every 10 minutes).
+
 Reference:
 [IETF token-mediating backend guidance](https://www.ietf.org/ietf-ftp/rfc/rfc10017.html#section-6.2).

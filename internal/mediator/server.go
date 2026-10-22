@@ -149,6 +149,10 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 
 	sessionID, created, err := s.store.GetOrCreate(cookieID, s.cfg.sessionLifetime)
 	if err != nil {
+		if errors.Is(err, session.ErrSessionLimit) {
+			writeJSONError(w, "session_limit_reached", http.StatusTooManyRequests)
+			return
+		}
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
 		return
 	}

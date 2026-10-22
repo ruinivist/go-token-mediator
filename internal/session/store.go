@@ -20,6 +20,7 @@ type ID string
 type Store struct {
 	mtx      sync.RWMutex
 	sessions map[ID]*session
+	limit    int
 }
 
 // main state for per user session details
@@ -59,6 +60,8 @@ type Connection struct {
 // ErrNoConnection indicates a missing, expired, or replaced connection.
 var ErrNoConnection = errors.New("no active provider connection")
 
+var ErrSessionLimit = errors.New("session limit reached")
+
 type connectionUpdate struct {
 	done chan struct{}
 	err  error
@@ -67,9 +70,10 @@ type connectionUpdate struct {
 // ---------- Session access ----------
 
 // Make a new session store, expected to be used as a singleton
-func NewStore() *Store {
+func NewStore(limit int) *Store {
 	return &Store{
 		sessions: make(map[ID]*session),
+		limit:    limit,
 	}
 }
 
@@ -90,6 +94,9 @@ func (s *Store) Create(lifetime time.Duration) (ID, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	if len(s.sessions) >= s.limit {
+		return "", ErrSessionLimit
+	}
 	s.sessions[id] = sess
 	return id, nil
 }

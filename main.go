@@ -30,7 +30,7 @@ func main() {
 	defer stop()
 
 	// sesison store
-	store := session.NewStore()
+	store := session.NewStore(cfg.SessionLimit)
 	store.StartCleanupWorker(ctx, 10*time.Minute)
 
 	// server

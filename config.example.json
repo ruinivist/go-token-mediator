@@ -2,6 +2,7 @@
   "host": "127.0.0.1",
   "port": 8080,
   "session_lifetime": "24h",
+  "session_limit": 1000,
   "frontend_origin_url": "http://localhost:3000",
   "frontend_completion_url": "http://localhost:3000/oauth/complete",
   "providers": {

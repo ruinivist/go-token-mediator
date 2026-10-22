@@ -22,6 +22,24 @@ func TestLoadConfig(t *testing.T) {
 	if cfg.Port != 8080 {
 		t.Fatalf("field 'port' is not expected ( 8080 ), got %d", cfg.Port)
 	}
+	if cfg.SessionLimit != 1000 {
+		t.Fatalf("session limit = %d, want 1000", cfg.SessionLimit)
+	}
+}
+
+func TestLoadConfig_SessionLimit(t *testing.T) {
+	for _, limit := range []int{-1, 0, 1, 1000} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			cfg, err := LoadConfig(configPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.SessionLimit = limit
+			if err := validate(cfg); (err == nil) != (limit > 0) {
+				t.Fatalf("session limit %d: validation error = %v", limit, err)
+			}
+		})
+	}
 }
 
 func TestLoadConfig_SessionLifetime(t *testing.T) {

@@ -39,7 +39,7 @@ func TestOAuthFlow(t *testing.T) {
 		FeCompletion:    "https://frontend.example/oauth/complete",
 		Providers:       map[string]ProviderConfig{"mock": provider},
 	}
-	store := session.NewStore()
+	store := session.NewStore(1000)
 	handler := NewServer(cfg, store).routes()
 
 	// ---------- Start ----------
@@ -302,7 +302,7 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 				io.WriteString(w, tc.body)
 			}))
 			defer provider.Close()
-			store := session.NewStore()
+			store := session.NewStore(1000)
 			id, err := store.Create(time.Hour)
 			if err != nil {
 				t.Fatal(err)
