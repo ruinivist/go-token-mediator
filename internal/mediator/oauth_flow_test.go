@@ -31,13 +31,15 @@ func TestOAuthFlow(t *testing.T) {
 		Scopes:       []string{"read:user", "user:email"},
 	}
 	cfg := &Config{
-		SessionLifetime: "24h",
-		sessionLifetime: 24 * time.Hour,
-		Host:            "127.0.0.1",
-		Port:            8080,
-		FeOrigin:        "https://frontend.example",
-		FeCompletion:    "https://frontend.example/oauth/complete",
-		Providers:       map[string]ProviderConfig{"mock": provider},
+		RateLimitPerMinute: 60,
+		RateLimitMaxIPs:    10000,
+		SessionLifetime:    "24h",
+		sessionLifetime:    24 * time.Hour,
+		Host:               "127.0.0.1",
+		Port:               8080,
+		FeOrigin:           "https://frontend.example",
+		FeCompletion:       "https://frontend.example/oauth/complete",
+		Providers:          map[string]ProviderConfig{"mock": provider},
 	}
 	store := session.NewStore(1000)
 	handler := NewServer(cfg, store).routes()
@@ -311,7 +313,7 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 			if !store.SaveConnection(id, original) || !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
 				t.Fatal("failed to prepare reconnect")
 			}
-			cfg := &Config{Providers: map[string]ProviderConfig{"mock": {TokenUrl: provider.URL}}}
+			cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, Providers: map[string]ProviderConfig{"mock": {TokenUrl: provider.URL}}}
 			query := tc.query
 			if query == "" {
 				query = "code=code&state=state"

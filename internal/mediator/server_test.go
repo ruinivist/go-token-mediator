@@ -153,7 +153,7 @@ func TestSessionLogout_InFlightOAuth(t *testing.T) {
 
 // Checks that a client cannot hold a POST open by leaving its body unfinished.
 func TestServer_UnfinishedBody(t *testing.T) {
-	cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
+	cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
 	server := NewServer(cfg, session.NewStore(1000))
 	if server.httpServer.ReadTimeout <= 0 {
 		t.Fatal("server must have a request read timeout")
@@ -224,7 +224,7 @@ func TestProviderToken_Response(t *testing.T) {
 				!store.SaveConnection(id, session.Connection{Provider: "other", AccessToken: "other-provider-token"}) {
 				t.Fatal("save other connections failed")
 			}
-			cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}, "other": {}}}
+			cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}, "other": {}}}
 			req := browserRequest("/oauth/mock/token", "{}")
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 			rec := httptest.NewRecorder()
@@ -305,7 +305,7 @@ func TestProviderToken_Unauthorized(t *testing.T) {
 			if name != "missing cookie" {
 				req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 			}
-			cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
+			cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
 			rec := httptest.NewRecorder()
 			NewServer(cfg, store).routes().ServeHTTP(rec, req)
 			if rec.Code != http.StatusUnauthorized || strings.TrimSpace(rec.Body.String()) != `{"error":"reauthorization_required"}` {
@@ -348,7 +348,7 @@ func TestValidateBrowserPost_Validation(t *testing.T) {
 		} {
 			t.Run(route+"/"+tc.name, func(t *testing.T) {
 				store := session.NewStore(1000)
-				cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {AuthUrl: "https://provider.example/authorize"}}}
+				cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {AuthUrl: "https://provider.example/authorize"}}}
 				path := "/oauth/mock/" + route
 				if route == "logout" {
 					path = "/session/logout"
@@ -407,7 +407,7 @@ func TestProviderPreflight(t *testing.T) {
 			{name: "unknown provider", origin: "https://frontend.example", method: "POST", provider: "unknown", status: 404},
 		} {
 			t.Run(route+"/"+tc.name, func(t *testing.T) {
-				cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
+				cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
 				path := "/oauth/" + tc.provider + "/" + route
 				if route == "logout" {
 					if tc.name == "unknown provider" {
@@ -455,7 +455,7 @@ func TestProviderPreflight(t *testing.T) {
 
 // Checks that unknown providers return 404 and unsupported HTTP methods return 405.
 func TestProviderToken_Routing(t *testing.T) {
-	cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
+	cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
 	handler := NewServer(cfg, session.NewStore(1000)).routes()
 	for _, tc := range []struct {
 		method, path string

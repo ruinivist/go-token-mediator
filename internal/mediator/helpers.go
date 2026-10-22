@@ -30,6 +30,18 @@ func (s *Server) allowBrowserOrigin(next http.HandlerFunc) http.HandlerFunc {
 		}
 		w.Header().Set("Access-Control-Allow-Origin", s.cfg.FeOrigin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Expose-Headers", "Retry-After")
+		next(w, r)
+	}
+}
+
+// callbackHeaders protects the callback URL even when middleware rejects the request.
+// for example in rate limiting, this is so browsers don't cached anything on such sensitive
+// requests
+func callbackHeaders(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Referrer-Policy", "no-referrer")
 		next(w, r)
 	}
 }

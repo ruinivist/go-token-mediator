@@ -3,6 +3,8 @@
   "port": 8080,
   "session_lifetime": "24h",
   "session_limit": 1000,
+  "rate_limit_per_minute": 60,
+  "rate_limit_max_ips": 10000,
   "frontend_origin_url": "http://localhost:3000",
   "frontend_completion_url": "http://localhost:3000/oauth/complete",
   "providers": {

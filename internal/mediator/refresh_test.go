@@ -292,6 +292,6 @@ func refreshFixture(t *testing.T, tokenURL string, lifetime time.Duration, refre
 	if !store.SaveConnection(id, conn) || !store.SaveConnection(id, session.Connection{Provider: "other", AccessToken: "unrelated"}) {
 		t.Fatal("save connection failed")
 	}
-	cfg := &Config{FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {ClientId: "client", ClientSecret: "private-secret", TokenUrl: tokenURL}}}
+	cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {ClientId: "client", ClientSecret: "private-secret", TokenUrl: tokenURL}}}
 	return store, id, NewServer(cfg, store).routes()
 }

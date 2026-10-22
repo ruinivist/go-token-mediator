@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"time"
 )
@@ -11,13 +12,16 @@ import (
 // ==== models =====
 
 type Config struct {
-	Host            string                    `json:"host"`
-	Port            int                       `json:"port"`
-	FeOrigin        string                    `json:"frontend_origin_url"`
-	FeCompletion    string                    `json:"frontend_completion_url"`
-	Providers       map[string]ProviderConfig `json:"providers"`
-	SessionLifetime string                    `json:"session_lifetime"`
-	SessionLimit    int                       `json:"session_limit"`
+	Host               string                    `json:"host"`
+	Port               int                       `json:"port"`
+	FeOrigin           string                    `json:"frontend_origin_url"`
+	FeCompletion       string                    `json:"frontend_completion_url"`
+	Providers          map[string]ProviderConfig `json:"providers"`
+	SessionLifetime    string                    `json:"session_lifetime"`
+	SessionLimit       int                       `json:"session_limit"`
+	RateLimitPerMinute int                       `json:"rate_limit_per_minute"`
+	RateLimitMaxIPs    int                       `json:"rate_limit_max_ips"`
+
 	sessionLifetime time.Duration
 }
 
@@ -59,6 +63,13 @@ func LoadConfig(path string) (*Config, error) {
 // Check no keys are missing. Config does NOT default to any values
 // everything MUST be explicit
 func validate(c *Config) error {
+	if c.RateLimitPerMinute <= 0 || c.RateLimitMaxIPs <= 0 {
+		return errors.New("'rate_limit_per_minute' and 'rate_limit_max_ips' must be positive integers")
+	}
+	host, err := netip.ParseAddr(c.Host)
+	if err != nil || !host.IsLoopback() || host.Zone() != "" {
+		return errors.New("'host' must be a loopback IP address for local Caddy")
+	}
 	if c.SessionLimit <= 0 {
 		return errors.New("'session_limit' must be a positive integer")
 	}

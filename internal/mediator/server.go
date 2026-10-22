@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"token-mediator/internal/session"
@@ -18,19 +19,21 @@ import (
 type Server struct {
 	cfg        *Config
 	store      *session.Store
+	limiter    *rateLimiter
 	httpServer *http.Server
 }
 
 func NewServer(cfg *Config, store *session.Store) *Server {
 	s := &Server{
-		cfg:   cfg,
-		store: store,
+		cfg:     cfg,
+		store:   store,
+		limiter: newRateLimiter(cfg.RateLimitPerMinute, cfg.RateLimitMaxIPs),
 	}
 
 	// routes is define on server so that the handlers can use config
 	// and store, but due to that we need to split the creation like this
 	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Addr:    net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
 		Handler: s.routes(),
 		// history lesson: slowloris attack ( 2009 ), single laptop
 		// opened hundreds of connections and sent headers extremely
@@ -78,10 +81,10 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("POST /session/logout", s.allowBrowserOrigin(s.validateBrowserPost(s.sessionLogout)))
 	mux.HandleFunc("OPTIONS /session/logout", s.allowBrowserOrigin(browserPreflight))
-	mux.HandleFunc("POST /oauth/{provider}/start", s.allowBrowserOrigin(s.validateBrowserPost(s.providerOAuthStart)))
+	mux.HandleFunc("POST /oauth/{provider}/start", s.allowBrowserOrigin(s.validateBrowserPost(s.rateLimit(s.providerOAuthStart))))
 	mux.HandleFunc("OPTIONS /oauth/{provider}/start", s.allowBrowserOrigin(s.providerPreflight))
-	mux.HandleFunc("GET /oauth/{provider}/callback", s.providerOAuthCallback)
-	mux.HandleFunc("POST /oauth/{provider}/token", s.allowBrowserOrigin(s.validateBrowserPost(s.providerToken)))
+	mux.HandleFunc("GET /oauth/{provider}/callback", callbackHeaders(s.rateLimit(s.providerOAuthCallback)))
+	mux.HandleFunc("POST /oauth/{provider}/token", s.allowBrowserOrigin(s.validateBrowserPost(s.rateLimit(s.providerToken))))
 	mux.HandleFunc("OPTIONS /oauth/{provider}/token", s.allowBrowserOrigin(s.providerPreflight))
 	return mux
 }
@@ -195,11 +198,6 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 
 // handles /oauth/{provider}/callback
 func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
-	// no cache signal to browsers, this also signals that it should not be sent as a referrer
-	// to other pages
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Referrer-Policy", "no-referrer")
-
 	providerName := r.PathValue("provider")
 	p, ok := s.cfg.Providers[providerName]
 	if !ok {
