@@ -102,6 +102,68 @@ func TestStore_GetOrCreate(t *testing.T) {
 
 // ---------- OAuth state ----------
 
+func TestStore_CompleteAuth(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		store := NewStore()
+		id, err := store.Create(time.Hour)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deadline, _ := store.ExpiresAt(id)
+		other := Connection{Provider: "other", AccessToken: "unrelated"}
+		if !store.SaveConnection(id, other) {
+			t.Fatal("could not save unrelated connection")
+		}
+		time.Sleep(5 * time.Minute)
+		connection := Connection{Provider: "mock", AccessToken: "authorized", RefreshToken: "refresh"}
+		newID, expiresAt, err := store.CompleteAuth(id, connection)
+		if err != nil || newID == "" || newID == id || !expiresAt.Equal(deadline) {
+			t.Fatalf("completion = %q, %v, %v", newID, expiresAt, err)
+		}
+		if store.Has(id) {
+			t.Fatal("old session ID is still active")
+		}
+		for _, want := range []Connection{connection, other} {
+			if got, ok := store.GetConnection(newID, want.Provider); !ok || got != want {
+				t.Fatalf("connection = %+v, want %+v", got, want)
+			}
+		}
+		if after, ok := store.ExpiresAt(newID); !ok || !after.Equal(deadline) {
+			t.Fatal("completion changed the stored deadline")
+		}
+		if _, _, err := store.CompleteAuth(id, connection); !errors.Is(err, ErrNoConnection) {
+			t.Fatal("completion accepted the old ID")
+		}
+	})
+}
+
+func TestStore_CompleteAuthRejectsInactiveSessions(t *testing.T) {
+	for _, action := range []string{"missing", "expired", "deleted"} {
+		t.Run(action, func(t *testing.T) {
+			store := NewStore()
+			id := ID("unknown")
+			if action != "missing" {
+				lifetime := time.Hour
+				if action == "expired" {
+					lifetime = -time.Second
+				}
+				var err error
+				id, err = store.Create(lifetime)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if action == "deleted" {
+					store.Delete(id)
+				}
+			}
+			newID, expiry, err := store.CompleteAuth(id, Connection{Provider: "mock", AccessToken: "new"})
+			if !errors.Is(err, ErrNoConnection) || newID != "" || !expiry.IsZero() {
+				t.Fatalf("completion = %q, %v, %v", newID, expiry, err)
+			}
+		})
+	}
+}
+
 func TestStore_OAuthStateTransitions(t *testing.T) {
 	store := NewStore()
 	id, err := store.Create(time.Hour)
@@ -365,7 +427,7 @@ func TestStore_UpdateConnectionCoalesces(t *testing.T) {
 }
 
 func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
-	for _, action := range []string{"delete", "expire", "reconnect", "rotate"} {
+	for _, action := range []string{"delete", "expire", "reconnect"} {
 		t.Run(action, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				store := NewStore()
@@ -385,7 +447,6 @@ func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
 					result <- err
 				}()
 				synctest.Wait()
-				var rotatedID ID
 				switch action {
 				case "delete":
 					store.Delete(id)
@@ -393,11 +454,6 @@ func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
 					time.Sleep(2 * time.Minute)
 				case "reconnect":
 					store.SaveConnection(id, Connection{Provider: "mock", AccessToken: "reconnected"})
-				case "rotate":
-					rotatedID, err = store.RotateId(id)
-					if err != nil {
-						t.Fatal(err)
-					}
 				}
 				close(release)
 				if err := <-result; !errors.Is(err, ErrNoConnection) {
@@ -411,9 +467,89 @@ func TestStore_UpdateConnectionDiscardsStaleResults(t *testing.T) {
 				} else if ok {
 					t.Fatal("restored inactive session")
 				}
-				if action == "rotate" {
-					if conn, ok := store.GetConnection(rotatedID, "mock"); !ok || conn.AccessToken != "old" {
-						t.Fatal("in-flight update changed the rotated session")
+			})
+		})
+	}
+}
+
+func TestStore_UpdateConnectionFollowsAuthCompletion(t *testing.T) {
+	for _, action := range []string{"refresh", "rejected", "delete", "expire", "reconnect"} {
+		t.Run(action, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				store := NewStore()
+				id, err := store.Create(time.Minute)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !store.SaveConnection(id, Connection{Provider: "mock", AccessToken: "old", RefreshToken: "spent"}) {
+					t.Fatal("could not prepare connection")
+				}
+				release := make(chan struct{})
+				oldResult := make(chan error, 1)
+				calls := 0
+				update := func(conn Connection) (*Connection, error) {
+					calls++
+					<-release
+					if action == "rejected" {
+						return nil, ErrNoConnection
+					}
+					conn.AccessToken = "fresh"
+					conn.RefreshToken = "replacement"
+					return &conn, nil
+				}
+				go func() {
+					_, err := store.UpdateConnection(t.Context(), id, "mock", update)
+					oldResult <- err
+				}()
+				synctest.Wait()
+				newID, _, err := store.CompleteAuth(id, Connection{Provider: "other", AccessToken: "authorized"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var waiter sync.WaitGroup
+				waiter.Go(func() {
+					conn, err := store.UpdateConnection(t.Context(), newID, "mock", update)
+					if action == "refresh" {
+						if err != nil || conn.AccessToken != "fresh" || conn.RefreshToken != "replacement" {
+							t.Errorf("new-ID waiter = %+v, %v", conn, err)
+						}
+					} else if !errors.Is(err, ErrNoConnection) {
+						t.Errorf("new-ID waiter error = %v, want ErrNoConnection", err)
+					}
+				})
+				synctest.Wait()
+				switch action {
+				case "delete":
+					store.Delete(newID)
+				case "expire":
+					time.Sleep(2 * time.Minute)
+				case "reconnect":
+					newID, _, err = store.CompleteAuth(newID, Connection{Provider: "mock", AccessToken: "reconnected"})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				close(release)
+				if err := <-oldResult; !errors.Is(err, ErrNoConnection) {
+					t.Fatalf("old-ID request error = %v, want ErrNoConnection", err)
+				}
+				waiter.Wait()
+				if calls != 1 {
+					t.Fatalf("refresh calls = %d, want 1", calls)
+				}
+				conn, ok := store.GetConnection(newID, "mock")
+				switch action {
+				case "refresh":
+					if !ok || conn.AccessToken != "fresh" || conn.RefreshToken != "replacement" {
+						t.Fatal("rotation lost refreshed credentials")
+					}
+				case "reconnect":
+					if !ok || conn.AccessToken != "reconnected" {
+						t.Fatal("refresh overwrote the newer connection")
+					}
+				default:
+					if ok {
+						t.Fatal("refresh retained a rejected or inactive connection")
 					}
 				}
 			})

@@ -24,6 +24,7 @@ type Store struct {
 
 // main state for per user session details
 type session struct {
+	id          ID
 	expiresAt   time.Time
 	pendingAuth *PendingAuth
 	connections map[string]*Connection // provider -> connection
@@ -80,6 +81,7 @@ func (s *Store) Create(lifetime time.Duration) (ID, error) {
 	}
 
 	sess := &session{
+		id:          id,
 		expiresAt:   time.Now().Add(lifetime),
 		connections: make(map[string]*Connection),
 		updates:     make(map[string]*connectionUpdate),
@@ -152,28 +154,34 @@ func (s *Store) Delete(id ID) {
 	delete(s.sessions, id)
 }
 
-func (s *Store) RotateId(id ID) (ID, error) {
-	newId, err := generateID()
+// ---------- OAuth state ----------
+
+// CompleteAuth saves a connection and rotates its session ID atomically.
+// The OAuth callback uses the returned ID and original deadline for its cookie.
+//
+// More than meets the eye?
+// This was done to avoid a RACE in my older code where I saved the sessiona and then
+// rotated the id separately, so for a moment the old id was still usable alonside the new one
+func (s *Store) CompleteAuth(id ID, connection Connection) (ID, time.Time, error) {
+	newID, err := generateID()
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	// this is called in a context in which it should never be expired but let's
-	// keep the check
 	sess, ok := s.sessions[id]
 	if !ok || sess.expired(time.Now()) {
-		return "", errors.New("Trying to rotate id for invalid session")
+		return "", time.Time{}, ErrNoConnection
 	}
 
-	s.sessions[newId] = sess
+	sess.connections[connection.Provider] = &connection
 	delete(s.sessions, id)
-	return newId, nil
+	sess.id = newID
+	s.sessions[newID] = sess
+	return newID, sess.expiresAt, nil
 }
-
-// ---------- OAuth state ----------
 
 // SetPendingAuth replaces the session's pending OAuth flow.
 func (s *Store) SetPendingAuth(id ID, pending PendingAuth) bool {
@@ -266,7 +274,7 @@ func (s *Store) UpdateConnection(ctx context.Context, id ID, provider string, up
 	// The callback's pointer controls storage; an error alone does not delete credentials.
 	flight.err = err
 	switch {
-	case s.sessions[id] != sess || sess.expired(time.Now()) || sess.connections[provider] != original:
+	case s.sessions[sess.id] != sess || sess.expired(time.Now()) || sess.connections[provider] != original:
 		// A refresh must not restore a deleted session or overwrite a reconnect.
 		flight.err = ErrNoConnection
 	case connection == nil:

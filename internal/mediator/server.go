@@ -259,26 +259,12 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		conn.ExpiresAt = time.Now().Add(time.Duration(*resp.ExpiresIn) * time.Second)
 	}
 
-	if !s.store.SaveConnection(sessId, *conn) {
-		http.Error(w, "invalid session", http.StatusBadRequest)
-		return
-	}
-
-	// See "Session ID rotation" in devlog
-	// before a completion set a new session id cookie
-	// remember, this is a session expiry not a token expiry
-	newId, err := s.store.RotateId(sessId)
+	newID, expiresAt, err := s.store.CompleteAuth(sessId, *conn)
 	if err != nil {
 		http.Error(w, "invalid session", http.StatusBadRequest)
 		return
 	}
-
-	expiresAt, ok := s.store.ExpiresAt(newId)
-	if !ok {
-		http.Error(w, "invalid session", http.StatusBadRequest)
-		return
-	}
-	http.SetCookie(w, makeCookie(newId, expiresAt))
+	http.SetCookie(w, makeCookie(newID, expiresAt))
 	http.Redirect(w, r, s.cfg.FeCompletion, http.StatusSeeOther)
 }
 
