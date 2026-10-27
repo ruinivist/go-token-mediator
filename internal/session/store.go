@@ -53,8 +53,9 @@ type Connection struct {
 	RefreshToken string
 	// in case we got denied, store from response what scoped
 	// were actually allowed
-	Scopes    string
-	ExpiresAt time.Time
+	Scopes           string
+	ExpiresAt        time.Time
+	RefreshExpiresAt time.Time // zero means the provider did not supply an expiry
 }
 
 // ErrNoConnection indicates a missing, expired, or replaced connection.

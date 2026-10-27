@@ -24,9 +24,10 @@ type tokenResponse struct {
 	// why ptr? to distinguish an ommission leading to 0 default
 	// vs an actual 0 response
 	// with a ptr it'll be nil
-	ExpiresIn    *int64  `json:"expires_in"`
-	RefreshToken *string `json:"refresh_token"`
-	Scope        *string `json:"scope"`
+	ExpiresIn             *int64  `json:"expires_in"`
+	RefreshToken          *string `json:"refresh_token"`
+	RefreshTokenExpiresIn *int64  `json:"refresh_token_expires_in"`
+	Scope                 *string `json:"scope"`
 
 	ErrorCode        string `json:"error"`
 	ErrorDescription string `json:"error_description"`
@@ -136,7 +137,8 @@ func (p *ProviderConfig) requestToken(ctx context.Context, form url.Values) (*to
 	if result.AccessToken == "" ||
 		(result.TokenType != nil && !strings.EqualFold(*result.TokenType, "Bearer")) ||
 		(result.RefreshToken != nil && *result.RefreshToken == "") ||
-		(result.ExpiresIn != nil && (*result.ExpiresIn <= 0 || *result.ExpiresIn > math.MaxInt64/int64(time.Second))) {
+		(result.ExpiresIn != nil && (*result.ExpiresIn <= 0 || *result.ExpiresIn > math.MaxInt64/int64(time.Second))) ||
+		(result.RefreshTokenExpiresIn != nil && (*result.RefreshTokenExpiresIn <= 0 || *result.RefreshTokenExpiresIn > math.MaxInt64/int64(time.Second))) {
 		return nil, &tokenError{uncertain: true, cause: errors.New("invalid token response")}
 	}
 	return result, nil

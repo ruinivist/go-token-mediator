@@ -187,6 +187,9 @@ func TestOAuthFlow(t *testing.T) {
 	if connection.ExpiresAt.Before(before.Add(time.Hour)) || connection.ExpiresAt.After(after.Add(time.Hour)) {
 		t.Errorf("token expiry = %v, want one hour after exchange", connection.ExpiresAt)
 	}
+	if !connection.RefreshExpiresAt.IsZero() {
+		t.Fatal("stored a refresh deadline that was not supplied")
+	}
 
 	// ---------- Browser token retrieval ----------
 
@@ -219,6 +222,39 @@ func TestOAuthFlow(t *testing.T) {
 	case <-tokenRequests:
 		t.Fatal("replayed callback contacted the token endpoint")
 	default:
+	}
+}
+
+func TestOAuthCallback_RefreshExpiry(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"access_token":"new","token_type":"Bearer","refresh_token":"private-refresh","refresh_token_expires_in":7200}`)
+	}))
+	defer provider.Close()
+	store, id, handler := refreshFixture(t, provider.URL, time.Hour, true)
+	deadline, _ := store.ExpiresAt(id)
+	if !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
+		t.Fatal("could not prepare authorization")
+	}
+	req := httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?code=code&state=state", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
+	before := time.Now()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	after := time.Now()
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("callback status = %d", rec.Code)
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatal("callback did not set a session cookie")
+	}
+	newID := session.ID(cookies[0].Value)
+	conn, ok := store.GetConnection(newID, "mock")
+	if !ok || conn.RefreshExpiresAt.Before(before.Add(2*time.Hour)) || conn.RefreshExpiresAt.After(after.Add(2*time.Hour)) {
+		t.Fatal("incorrect refresh deadline after authorization")
+	}
+	if got, ok := store.ExpiresAt(newID); !ok || !got.Equal(deadline) {
+		t.Fatal("authorization changed session deadline")
 	}
 }
 
@@ -282,6 +318,7 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 		{name: "error with code", query: "error=access_denied&code=code&state=state", noExchange: true, wantStatus: 400},
 		{name: "missing code", query: "state=state", noExchange: true, wantStatus: 400},
 		{name: "empty access token", status: 200, body: `{"access_token":"","token_type":"Bearer"}`, wantStatus: 502},
+		{name: "invalid refresh lifetime", status: 200, body: `{"access_token":"new","token_type":"Bearer","refresh_token":"private-refresh","refresh_token_expires_in":-1}`, wantStatus: 502},
 		{name: "malformed JSON", status: 200, body: `{`, wantStatus: 502},
 		{name: "OAuth error with 200", status: 200, body: `{"error":"invalid_client","error_description":"private-secret"}`, wantStatus: 502},
 		{name: "upstream HTTP error", status: 503, body: `private-secret`, wantStatus: 502},

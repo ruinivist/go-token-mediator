@@ -252,6 +252,9 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	if resp.RefreshToken != nil {
 		conn.RefreshToken = *resp.RefreshToken
+		if resp.RefreshTokenExpiresIn != nil {
+			conn.RefreshExpiresAt = time.Now().Add(time.Duration(*resp.RefreshTokenExpiresIn) * time.Second)
+		}
 	}
 	if resp.Scope != nil {
 		conn.Scopes = *resp.Scope
@@ -295,11 +298,12 @@ func (s *Server) providerToken(w http.ResponseWriter, r *http.Request) {
 	sessId := session.ID(c.Value)
 
 	conn, err := s.store.UpdateConnection(r.Context(), sessId, providerName, func(conn session.Connection) (*session.Connection, error) {
-		if conn.ExpiresAt.IsZero() || time.Until(conn.ExpiresAt) > 2*time.Minute {
+		now := time.Now()
+		if conn.ExpiresAt.IsZero() || conn.ExpiresAt.Sub(now) > 2*time.Minute {
 			return &conn, nil
 		}
-		if conn.RefreshToken == "" {
-			if !time.Now().Before(conn.ExpiresAt) {
+		if conn.RefreshToken == "" || (!conn.RefreshExpiresAt.IsZero() && !now.Before(conn.RefreshExpiresAt)) {
+			if !now.Before(conn.ExpiresAt) {
 				return nil, session.ErrNoConnection
 			}
 			return &conn, nil
@@ -307,11 +311,13 @@ func (s *Server) providerToken(w http.ResponseWriter, r *http.Request) {
 		resp, err := p.refreshAccessToken(r.Context(), conn.RefreshToken)
 		if err != nil {
 			var upstream *tokenError
-			if errors.As(err, &upstream) && (upstream.code == "invalid_grant" || upstream.uncertain) {
-				if upstream.code == "invalid_grant" {
+			if errors.As(err, &upstream) {
+				if upstream.code == "invalid_grant" || upstream.code == "bad_refresh_token" {
 					return nil, session.ErrNoConnection
 				}
-				return nil, err
+				if upstream.uncertain {
+					return nil, err
+				}
 			}
 			return &conn, err
 		}
@@ -322,6 +328,11 @@ func (s *Server) providerToken(w http.ResponseWriter, r *http.Request) {
 		}
 		if resp.RefreshToken != nil {
 			conn.RefreshToken = *resp.RefreshToken
+			// A replacement token does not inherit the previous token's deadline.
+			conn.RefreshExpiresAt = time.Time{}
+		}
+		if resp.RefreshTokenExpiresIn != nil {
+			conn.RefreshExpiresAt = time.Now().Add(time.Duration(*resp.RefreshTokenExpiresIn) * time.Second)
 		}
 		if resp.Scope != nil {
 			conn.Scopes = *resp.Scope
