@@ -4,13 +4,17 @@ Lightest token mediator
 
 Read the [architecture notes](docs/architecture.md) for setup, UML, and design guidance, or the [breakdown](docs/architecture-breakdown.md) for incremental recall.
 
-Some sites like Github do not support a client only OAuth path and force you to put a client credential
-on the frontend, which is fine as NOT having to do that is not any more secure, browser is inherently less
-secure than a mediating backned ( or a bff as the best case ).
-Refresh tokens are also NOT SHARED which is the whole point of a mediator else it could just have been a
-token exchange.
+The backend keeps client secrets and refresh tokens private. The frontend obtains
+access tokens from the mediator and calls provider APIs directly.
 
-- sqlite ( as worse case they'll have to login again )
+Sessions persist in SQLite through the pure Go `modernc.org/sqlite` driver.
+Set the required `database_path` in your configuration; the example uses
+`./data/sessions.db`, relative to the working directory. One process owns the
+file exclusively. New directories use `0700` and the database uses `0600`.
+
+The first deployment starts empty and requires reconnection. Later committed
+sessions survive restarts. An interrupted refresh requires reconnection for
+that provider. Database files and backups contain sensitive credentials.
 
 Configuration requires a positive `session_limit`; the example sets it to `1000`.
 At the limit, new sessions receive HTTP `429` with `session_limit_reached`.

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,7 @@ func TestOAuthFlow(t *testing.T) {
 		FeCompletion:       "https://frontend.example/oauth/complete",
 		Providers:          map[string]ProviderConfig{"mock": provider},
 	}
-	store := session.NewStore(1000)
+	store := newTestStore(t, 1000, 24*time.Hour)
 	handler := NewServer(cfg, store).routes()
 
 	// ---------- Start ----------
@@ -97,7 +98,7 @@ func TestOAuthFlow(t *testing.T) {
 		t.Errorf("unexpected session cookie attributes: %+v", cookie)
 	}
 	sessionID := session.ID(cookie.Value)
-	if !store.Has(sessionID) {
+	if _, _, err := store.LoadConnection(t.Context(), sessionID, "mock"); !errors.Is(err, session.ErrNoConnection) {
 		t.Fatal("session cookie does not identify an active session")
 	}
 	doCallback := func(callbackState string) *httptest.ResponseRecorder {
@@ -120,7 +121,7 @@ func TestOAuthFlow(t *testing.T) {
 		t.Fatal("wrong-state callback contacted the token endpoint")
 	default:
 	}
-	if _, ok := store.GetConnection(sessionID, "mock"); ok {
+	if _, _, err := store.LoadConnection(t.Context(), sessionID, "mock"); !errors.Is(err, session.ErrNoConnection) {
 		t.Fatal("wrong-state callback saved a connection")
 	}
 
@@ -139,7 +140,7 @@ func TestOAuthFlow(t *testing.T) {
 	if len(cookies) != 1 || cookies[0].Name != sessionCookieName || cookies[0].Value == "" || cookies[0].Value == cookie.Value {
 		t.Fatal("callback did not rotate the session cookie")
 	}
-	if store.Has(sessionID) {
+	if _, _, err := store.LoadConnection(t.Context(), sessionID, "mock"); !errors.Is(err, session.ErrNoSession) {
 		t.Fatal("rotation left the old session ID active")
 	}
 	oldTokenRequest := browserRequest("/oauth/mock/token", "{}")
@@ -176,8 +177,8 @@ func TestOAuthFlow(t *testing.T) {
 	if got := base64.RawURLEncoding.EncodeToString(hash[:]); got != challenge {
 		t.Errorf("PKCE verifier hashes to %q, want %q", got, challenge)
 	}
-	connection, ok := store.GetConnection(sessionID, "mock")
-	if !ok {
+	connection, _, err := store.LoadConnection(t.Context(), sessionID, "mock")
+	if err != nil {
 		t.Fatal("callback did not save a provider connection")
 	}
 	if connection.Provider != "mock" || connection.AccessToken != "mock-access-token" ||
@@ -230,10 +231,10 @@ func TestOAuthCallback_RefreshExpiry(t *testing.T) {
 		io.WriteString(w, `{"access_token":"new","token_type":"Bearer","refresh_token":"private-refresh","refresh_token_expires_in":7200}`)
 	}))
 	defer provider.Close()
-	store, id, handler := refreshFixture(t, provider.URL, time.Hour, true)
-	deadline, _ := store.ExpiresAt(id)
-	if !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
-		t.Fatal("could not prepare authorization")
+	store, browser, handler := refreshFixture(t, provider.URL, time.Hour, true)
+	id, deadline := browser.ID, browser.ExpiresAt
+	if _, err := store.BeginAuth(t.Context(), id, session.PendingAuth{Provider: "mock", State: "state"}); err != nil {
+		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?code=code&state=state", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
@@ -249,21 +250,21 @@ func TestOAuthCallback_RefreshExpiry(t *testing.T) {
 		t.Fatal("callback did not set a session cookie")
 	}
 	newID := session.ID(cookies[0].Value)
-	conn, ok := store.GetConnection(newID, "mock")
-	if !ok || conn.RefreshExpiresAt.Before(before.Add(2*time.Hour)) || conn.RefreshExpiresAt.After(after.Add(2*time.Hour)) {
+	conn, _, err := store.LoadConnection(t.Context(), newID, "mock")
+	if err != nil || conn.RefreshExpiresAt.Before(before.Add(2*time.Hour)) || conn.RefreshExpiresAt.After(after.Add(2*time.Hour)) {
 		t.Fatal("incorrect refresh deadline after authorization")
 	}
-	if got, ok := store.ExpiresAt(newID); !ok || !got.Equal(deadline) {
+	if got, err := store.BeginAuth(t.Context(), newID, session.PendingAuth{}); err != nil || !got.ExpiresAt.Equal(deadline) {
 		t.Fatal("authorization changed session deadline")
 	}
 }
 
 func TestOAuthCallback_RotationPreservesSession(t *testing.T) {
 	provider, _ := newMockOAuthServer(t)
-	store, id, handler := refreshFixture(t, provider.URL+"/token", time.Hour, true)
-	deadline, ok := store.ExpiresAt(id)
-	if !ok || !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
-		t.Fatal("could not prepare session")
+	store, browser, handler := refreshFixture(t, provider.URL+"/token", time.Hour, true)
+	id, deadline := browser.ID, browser.ExpiresAt
+	if _, err := store.BeginAuth(t.Context(), id, session.PendingAuth{Provider: "mock", State: "state"}); err != nil {
+		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?code=code&state=state", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
@@ -278,10 +279,10 @@ func TestOAuthCallback_RotationPreservesSession(t *testing.T) {
 	}
 	cookie := cookies[0]
 	newID := session.ID(cookie.Value)
-	if store.Has(id) {
+	if _, _, err := store.LoadConnection(t.Context(), id, "mock"); !errors.Is(err, session.ErrNoSession) {
 		t.Fatal("old session ID still works")
 	}
-	if after, ok := store.ExpiresAt(newID); !ok || !after.Equal(deadline) {
+	if after, err := store.BeginAuth(t.Context(), newID, session.PendingAuth{}); err != nil || !after.ExpiresAt.Equal(deadline) {
 		t.Fatal("rotation changed the session deadline")
 	}
 	if !cookie.Expires.Equal(deadline.UTC().Truncate(time.Second)) {
@@ -290,15 +291,20 @@ func TestOAuthCallback_RotationPreservesSession(t *testing.T) {
 	if !cookie.Secure || !cookie.HttpOnly || cookie.Path != "/" || cookie.Domain != "" || cookie.SameSite != http.SameSiteLaxMode {
 		t.Fatal("rotation changed cookie protections")
 	}
-	if conn, ok := store.GetConnection(newID, "other"); !ok || conn.AccessToken != "unrelated" {
+	if conn, _, err := store.LoadConnection(t.Context(), newID, "other"); err != nil || conn.AccessToken != "unrelated" {
 		t.Fatal("rotation lost another provider connection")
 	}
 	logout := browserRequest("/session/logout", "{}")
 	logout.AddCookie(cookie)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, logout)
-	if rec.Code != http.StatusNoContent || store.Has(newID) || store.Has(id) {
-		t.Fatal("logout did not invalidate the rotated session")
+	if rec.Code != http.StatusNoContent {
+		t.Fatal("logout failed")
+	}
+	for _, cookie := range []session.ID{id, newID} {
+		if _, _, err := store.LoadConnection(t.Context(), cookie, "mock"); !errors.Is(err, session.ErrNoSession) {
+			t.Fatal("logout did not invalidate session")
+		}
 	}
 }
 
@@ -341,14 +347,12 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 				io.WriteString(w, tc.body)
 			}))
 			defer provider.Close()
-			store := session.NewStore(1000)
-			id, err := store.Create(time.Hour)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store := newTestStore(t, 1000, 24*time.Hour)
 			original := session.Connection{Provider: "mock", AccessToken: "existing", RefreshToken: "private-refresh"}
-			if !store.SaveConnection(id, original) || !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
-				t.Fatal("failed to prepare reconnect")
+			browser := authorize(t, store, "", original)
+			id := browser.ID
+			if _, err := store.BeginAuth(t.Context(), id, session.PendingAuth{Provider: "mock", State: "state"}); err != nil {
+				t.Fatal(err)
 			}
 			cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, Providers: map[string]ProviderConfig{"mock": {TokenUrl: provider.URL}}}
 			query := tc.query
@@ -367,7 +371,7 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 			if tc.noExchange && len(calls) != 0 {
 				t.Fatal("invalid callback contacted the token endpoint")
 			}
-			if _, ok := store.ConsumePendingAuth(id, "mock", "state"); ok {
+			if _, _, err := store.ConsumeAuth(t.Context(), id, "mock", "state"); !errors.Is(err, session.ErrInvalidAuth) {
 				t.Fatal("failed callback left authorization attempt reusable")
 			}
 			if rec.Code != tc.wantStatus {
@@ -376,7 +380,7 @@ func TestOAuthCallback_ProviderFailures(t *testing.T) {
 			if rec.Header().Get("Location") != "" || strings.Contains(rec.Body.String(), "private") {
 				t.Fatal("redirected or exposed provider details on failure")
 			}
-			if got, ok := store.GetConnection(id, "mock"); !ok || got != original {
+			if got, _, err := store.LoadConnection(t.Context(), id, "mock"); err != nil || got != original {
 				t.Fatal("changed existing connection after failed reconnect")
 			}
 		})

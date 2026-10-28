@@ -1,45 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1100" viewBox="0 0 1500 1100" role="img" aria-labelledby="title"><title id="title">Part 2: establish a provider connection</title>
-<defs>
-<marker id="open" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.5"/></marker>
-<marker id="filled" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12 Z" fill="black"/></marker>
-</defs>
-<rect width="1500" height="1100" fill="white"/>
-<g font-family="DejaVu Sans, sans-serif" fill="black">
-<text x="750.0" y="43" font-size="31" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Part 2: establish a provider connection</text>
-<text x="750.0" y="79" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Blue: logic    Green: state    Purple: contracts    Black: UML relationships</text>
-<rect x="50" y="130" width="650" height="140" fill="white" stroke="black" stroke-width="2"/>
-<text x="375.0" y="165" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">mediator.Server</text>
-<path d="M50 182 H700" fill="none" stroke="black" stroke-width="2"/>
-<path d="M50 192 H700" fill="none" stroke="black" stroke-width="2"/>
-<text x="68" y="222" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ providerOAuthStart(w, r)</text>
-<text x="68" y="252" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ providerOAuthCallback(w, r)</text>
-<rect x="850" y="130" width="600" height="200" fill="white" stroke="black" stroke-width="2"/>
-<text x="1150.0" y="165" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">mediator.ProviderConfig</text>
-<path d="M850 182 H1450" fill="none" stroke="black" stroke-width="2"/>
-<text x="868" y="212" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ AuthUrl, TokenUrl: string</text>
-<text x="868" y="242" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ ClientId, ClientSecret: string</text>
-<path d="M850 252 H1450" fill="none" stroke="black" stroke-width="2"/>
-<text x="868" y="282" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ buildAuthUrl(state, challenge)</text>
-<text x="868" y="312" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ fetchAccessToken(code, verifier, ctx)</text>
-<path d="M700 220 H850" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="775" y="202" font-size="18" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">uses</text>
-<rect x="50" y="500" width="650" height="170" fill="white" stroke="black" stroke-width="2"/>
-<text x="375.0" y="535" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.Store</text>
-<path d="M50 552 H700" fill="none" stroke="black" stroke-width="2"/>
-<path d="M50 562 H700" fill="none" stroke="black" stroke-width="2"/>
-<text x="68" y="592" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ SetPendingAuth(id, pending)</text>
-<text x="68" y="622" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ ConsumePendingAuth(id, provider, state)</text>
-<text x="68" y="652" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ CompleteAuth(id, connection)</text>
-<path d="M375 270 V500" fill="none" stroke="black" stroke-width="2" marker-end="url(#open)"/>
-<text x="395" y="395" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">store: 1</text>
-<path d="M850 510 H1430 L1450 530 V654 H850 Z M1430 510 V530 H1450" fill="white" stroke="black" stroke-width="2"/>
-<text x="866" y="542" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1. Save provider, state, verifier, start time.</text>
-<text x="866" y="572" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">2. Consume valid attempt under lock.</text>
-<text x="866" y="602" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">3. Exchange code outside lock.</text>
-<text x="866" y="632" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">4. Save + rotate ID under lock.</text>
-<path d="M700 570 H850" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
-<path d="M110 825 H1370 L1390 845 V939 H110 Z M1370 825 V845 H1390" fill="white" stroke="black" stroke-width="2"/>
-<text x="126" y="857" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">The authorization URL carries the challenge; the verifier stays on the backend.</text>
-<text x="126" y="887" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Completion keeps other connections and the original deadline. Old session ID stops working.</text>
-<text x="126" y="917" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">A consumed attempt cannot be replayed, including after an exchange failure.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="610" viewBox="0 0 1200 610" role="img" aria-labelledby="title desc"><title id="title">Part 2: authorization transactions</title><desc id="desc">The mediator exchanges a code between consuming authorization and atomically saving and rotating its session cookie.</desc><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#24364b" stroke-width="1.5"/></marker></defs><rect width="1200" height="610" fill="white"/><g font-family="DejaVu Sans, sans-serif" fill="#15283c"><text x="600" y="42" text-anchor="middle" font-size="26" font-weight="bold">Part 2: authorization transactions</text>
+<rect x="35" y="100" width="530" height="144" rx="4" fill="#f6f9fc" stroke="#24364b" stroke-width="1.5"/><path d="M35 143 H565" stroke="#24364b"/>
+<text x="300.0" y="129" font-size="20" text-anchor="middle">mediator.Server + ProviderConfig</text>
+<text x="51" y="170" font-size="17" text-anchor="start">Generate state, verifier, challenge</text>
+<text x="51" y="198" font-size="17" text-anchor="start">Build provider URL and exchange code</text>
+<text x="51" y="226" font-size="17" text-anchor="start">Never send verifier or refresh token to browser</text>
+<rect x="650" y="100" width="515" height="144" rx="4" fill="#f6f9fc" stroke="#24364b" stroke-width="1.5"/><path d="M650 143 H1165" stroke="#24364b"/>
+<text x="907.5" y="129" font-size="20" text-anchor="middle">session.Store</text>
+<text x="666" y="170" font-size="17" text-anchor="start">BeginAuth(ctx, cookie, pending)</text>
+<text x="666" y="198" font-size="17" text-anchor="start">ConsumeAuth(ctx, cookie, provider, state)</text>
+<text x="666" y="226" font-size="17" text-anchor="start">CompleteAuth(ctx, handle, connection)</text>
+<path d="M565 190 L650 190" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="607.5" y="180.0" font-size="16" text-anchor="middle">calls</text>
+<rect x="180" y="390" width="840" height="172" rx="4" fill="#f6f9fc" stroke="#24364b" stroke-width="1.5"/><path d="M180 433 H1020" stroke="#24364b"/>
+<text x="600.0" y="419" font-size="20" text-anchor="middle">Opaque authorization handle</text>
+<text x="196" y="460" font-size="17" text-anchor="start">Bound to original session identity, cookie, and provider</text>
+<text x="196" y="488" font-size="17" text-anchor="start">Completion saves connection + rotates cookie in one transaction</text>
+<text x="196" y="516" font-size="17" text-anchor="start">Other providers and the original deadline survive</text>
+<text x="196" y="544" font-size="17" text-anchor="start">Consumed attempts cannot be replayed after failure</text>
+<path d="M900 244 L900 390" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="900.0" y="307.0" font-size="16" text-anchor="middle">returns / validates</text>
 </g></svg>

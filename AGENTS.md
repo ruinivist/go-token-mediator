@@ -8,7 +8,7 @@ Intentional limits belong in [Decisions to skip](docs/Decisions%20to%20skip.md).
 
 - `main.go` wires configuration, signal cancellation, session cleanup, and the HTTP server.
 - `internal/mediator` owns configuration validation, HTTP routes, browser request protections, and outbound OAuth exchanges and refreshes.
-- `internal/session` owns session state, pending authorization, provider connections, expiry, and synchronization. Keep its mutable state private and return copies.
+- `internal/session` owns SQLite session transactions, pending authorization, provider connections, expiry, and refresh coordination. Keep its state private and return copies.
 
 The browser starts authorization and receives a provider URL and an opaque session cookie. The callback validates and consumes pending authorization, exchanges the code, saves the connection, rotates the session ID, and redirects to the configured frontend completion URL. The frontend requests access tokens and calls provider APIs directly. Refresh happens on the backend when needed.
 
@@ -18,7 +18,7 @@ The browser starts authorization and receives a provider URL and an opaque sessi
 - Validate the callback's session, provider, state, and pending-attempt expiry before exchanging a code. Consume valid pending authorization atomically so it cannot be replayed.
 - Preserve cookie protections and the exact-origin, CSRF-header, and empty-JSON checks on browser POST requests.
 - Save authorization results and rotate the session ID atomically. Preserve other provider connections and the absolute session deadline.
-- Share concurrent refresh work per session/provider. Run provider HTTP calls outside the global store lock, and reject stale writes after logout, expiry, or connection replacement.
+- Share concurrent refresh work per session/provider. Run provider HTTP calls outside SQL transactions and coordination locks, and reject stale writes after logout, expiry, or connection replacement.
 - Preserve request cancellation, timeouts, body limits, upstream response validation, and sanitized errors. Do not retry exchanges or refreshes blindly; codes are single-use and refresh tokens may rotate.
 
 ## Making changes

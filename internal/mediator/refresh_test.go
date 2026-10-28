@@ -5,6 +5,7 @@ package mediator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -55,14 +56,17 @@ func TestProviderToken_Refresh(t *testing.T) {
 				io.WriteString(w, tc.body)
 			}))
 			defer provider.Close()
-			store, id, handler := refreshFixture(t, provider.URL, tc.lifetime, !tc.noRefresh)
-			deadline, _ := store.ExpiresAt(id)
+			store, browser, handler := refreshFixture(t, provider.URL, tc.lifetime, !tc.noRefresh)
+			id := browser.ID
+			deadline := browser.ExpiresAt
 			req := browserRequest("/oauth/mock/token", "{}")
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
-			if after, ok := store.ExpiresAt(id); !ok || !after.Equal(deadline) {
-				t.Fatal("token retrieval changed session deadline")
+
+			afterBrowser, err := store.BeginAuth(t.Context(), id, session.PendingAuth{})
+			if err != nil || !afterBrowser.ExpiresAt.Equal(deadline) {
+				t.Fatal("changed session deadline")
 			}
 			if rec.Code != 200 {
 				t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
@@ -76,8 +80,8 @@ func TestProviderToken_Refresh(t *testing.T) {
 			if calls.Load() != wantCalls {
 				t.Fatalf("refresh calls = %d, want %d", calls.Load(), wantCalls)
 			}
-			conn, ok := store.GetConnection(id, "mock")
-			if !ok || conn.AccessToken != wantToken || conn.RefreshToken != tc.wantRefreshToken || conn.Scopes != tc.wantScope {
+			conn, _, loadErr := store.LoadConnection(t.Context(), id, "mock")
+			if loadErr != nil || conn.AccessToken != wantToken || conn.RefreshToken != tc.wantRefreshToken || conn.Scopes != tc.wantScope {
 				t.Fatalf("stored refresh fields did not match")
 			}
 			if tc.unknownExpiry != conn.ExpiresAt.IsZero() {
@@ -157,15 +161,18 @@ func TestProviderToken_RefreshExpiry(t *testing.T) {
 				io.WriteString(w, tc.body)
 			}))
 			defer provider.Close()
-			store, id, handler := refreshFixture(t, provider.URL, tc.accessLifetime, true)
-			original, _ := store.GetConnection(id, "mock")
+			store, browser, handler := refreshFixture(t, provider.URL, tc.accessLifetime, true)
+			id := browser.ID
+			original, _, err := store.LoadConnection(t.Context(), id, "mock")
+			if err != nil {
+				t.Fatal(err)
+			}
 			if tc.refreshLifetime != 0 {
-				original.RefreshExpiresAt = time.Now().Add(tc.refreshLifetime)
+				original.RefreshExpiresAt = time.Now().Add(tc.refreshLifetime).UTC().Truncate(time.Microsecond)
 			}
-			if !store.SaveConnection(id, original) {
-				t.Fatal("could not set refresh expiry")
-			}
-			deadline, _ := store.ExpiresAt(id)
+			browser = authorize(t, store, id, original)
+			id = browser.ID
+			deadline := browser.ExpiresAt
 			before := time.Now()
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, browserTokenRequest(id))
@@ -180,15 +187,16 @@ func TestProviderToken_RefreshExpiry(t *testing.T) {
 			if calls.Load() != wantCalls {
 				t.Fatalf("refresh calls = %d, want %d", calls.Load(), wantCalls)
 			}
-			if got, ok := store.ExpiresAt(id); !ok || !got.Equal(deadline) {
+			afterBrowser, err := store.BeginAuth(t.Context(), id, session.PendingAuth{})
+			if err != nil || !afterBrowser.ExpiresAt.Equal(deadline) {
 				t.Fatal("changed session deadline")
 			}
-			if _, ok := store.GetConnection(id, "other"); !ok {
+			if _, _, err := store.LoadConnection(t.Context(), id, "other"); err != nil {
 				t.Fatal("removed unrelated connection")
 			}
-			conn, ok := store.GetConnection(id, "mock")
+			conn, _, loadErr := store.LoadConnection(t.Context(), id, "mock")
 			if tc.wantStatus == 401 {
-				if ok || rec.Body.String() != "{\"error\":\"reauthorization_required\"}\n" {
+				if loadErr == nil || rec.Body.String() != "{\"error\":\"reauthorization_required\"}\n" {
 					t.Fatal("did not require reconnection")
 				}
 				return
@@ -197,7 +205,7 @@ func TestProviderToken_RefreshExpiry(t *testing.T) {
 			if tc.wantRefresh {
 				wantAccess = "new"
 			}
-			if !ok || conn.AccessToken != wantAccess || conn.RefreshToken != tc.wantRefreshToken {
+			if loadErr != nil || conn.AccessToken != wantAccess || conn.RefreshToken != tc.wantRefreshToken {
 				t.Fatal("incorrect stored credentials")
 			}
 			switch {
@@ -239,7 +247,8 @@ func TestProviderToken_ConcurrentRefresh(t *testing.T) {
 		io.WriteString(w, `{"access_token":"shared","refresh_token":"rotated","expires_in":3600}`)
 	}))
 	defer provider.Close()
-	_, id, handler := refreshFixture(t, provider.URL, time.Minute, true)
+	_, browser, handler := refreshFixture(t, provider.URL, time.Minute, true)
+	id := browser.ID
 	var wg sync.WaitGroup
 	for range 16 {
 		wg.Go(func() {
@@ -331,7 +340,8 @@ func TestProviderToken_RefreshFailures(t *testing.T) {
 				}
 			}))
 			defer provider.Close()
-			store, id, handler := refreshFixture(t, provider.URL, time.Minute, true)
+			store, browser, handler := refreshFixture(t, provider.URL, time.Minute, true)
+			id := browser.ID
 			req := browserRequest("/oauth/mock/token", "{}")
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 			if tc.status == -1 {
@@ -350,14 +360,14 @@ func TestProviderToken_RefreshFailures(t *testing.T) {
 			if calls.Load() > 1 {
 				t.Fatal("retried refresh")
 			}
-			conn, ok := store.GetConnection(id, "mock")
-			if ok == tc.remove {
-				t.Fatalf("connection exists = %v, remove = %v", ok, tc.remove)
+			conn, _, loadErr := store.LoadConnection(t.Context(), id, "mock")
+			if (loadErr == nil) == tc.remove || (loadErr != nil && !errors.Is(loadErr, session.ErrNoConnection)) {
+				t.Fatalf("connection error = %v, remove = %v", loadErr, tc.remove)
 			}
-			if ok && (conn.AccessToken != "old" || conn.RefreshToken != "private-refresh") {
+			if loadErr == nil && (conn.AccessToken != "old" || conn.RefreshToken != "private-refresh") {
 				t.Fatal("changed credentials on failure")
 			}
-			if _, ok := store.GetConnection(id, "other"); !ok {
+			if _, _, err := store.LoadConnection(t.Context(), id, "other"); err != nil {
 				t.Fatal("removed unrelated connection")
 			}
 			if tc.remove {
@@ -379,13 +389,9 @@ func browserTokenRequest(id session.ID) *http.Request {
 	return req
 }
 
-func refreshFixture(t *testing.T, tokenURL string, lifetime time.Duration, refresh bool) (*session.Store, session.ID, http.Handler) {
+func refreshFixture(t *testing.T, tokenURL string, lifetime time.Duration, refresh bool) (*session.Store, session.BrowserSession, http.Handler) {
 	t.Helper()
-	store := session.NewStore(1000)
-	id, err := store.Create(time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := newTestStore(t, 1000, time.Hour)
 	conn := session.Connection{Provider: "mock", AccessToken: "old", Scopes: "old-scope"}
 	if refresh {
 		conn.RefreshToken = "private-refresh"
@@ -393,9 +399,7 @@ func refreshFixture(t *testing.T, tokenURL string, lifetime time.Duration, refre
 	if lifetime != 0 {
 		conn.ExpiresAt = time.Now().Add(lifetime)
 	}
-	if !store.SaveConnection(id, conn) || !store.SaveConnection(id, session.Connection{Provider: "other", AccessToken: "unrelated"}) {
-		t.Fatal("save connection failed")
-	}
+	browser := authorize(t, store, "", conn, session.Connection{Provider: "other", AccessToken: "unrelated"})
 	cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {ClientId: "client", ClientSecret: "private-secret", TokenUrl: tokenURL}}}
-	return store, id, NewServer(cfg, store).routes()
+	return store, browser, NewServer(cfg, store).routes()
 }

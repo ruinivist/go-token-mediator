@@ -1,64 +1,41 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2438" viewBox="0 0 1800 2438" role="img" aria-labelledby="title"><title id="title">Authorization: start, consume, exchange, rotate</title>
-<defs>
-<marker id="open" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.5"/></marker>
-<marker id="filled" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12 Z" fill="black"/></marker>
-</defs>
-<rect width="1800" height="2438" fill="white"/>
-<g font-family="DejaVu Sans, sans-serif" fill="black">
-<text x="900.0" y="43" font-size="31" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Authorization: start, consume, exchange, rotate</text>
-<text x="900.0" y="79" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Blue: logic    Green: state    Purple: contracts    Black: UML relationships</text>
-<rect x="30" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
-<text x="170" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Browser</text>
-<path d="M170 190 V2373" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
-<rect x="510" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
-<text x="650" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Server</text>
-<path d="M650 190 V2373" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
-<rect x="970" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
-<text x="1110" y="164" font-size="23" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Store</text>
-<path d="M1110 190 V2373" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
-<rect x="1460" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
-<text x="1600" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Provider</text>
-<path d="M1600 190 V2373" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
-<path d="M170 260 H650" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="410.0" y="242" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">POST /oauth/{provider}/start; headers + {}</text>
-<path d="M650 372 H1110" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="880.0" y="354" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">GetOrCreate; SetPendingAuth</text>
-<path d="M1110 484 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="1225" y="494" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: save state + verifier;</text>
-<text x="1225" y="519" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">unlock</text>
-<path d="M1110 596 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="880.0" y="578" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Session ID; pending attempt saved</text>
-<path d="M650 708 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="410.0" y="690" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">authorization_url; cookie if new session</text>
-<path d="M170 820 H1600" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="885.0" y="802" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Navigate: state + S256 challenge</text>
-<path d="M1600 932 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="885.0" y="914" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Approval; redirect to callback with code + state</text>
-<path d="M170 1044 H650" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="410.0" y="1026" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">GET callback; code + state + cookie</text>
-<path d="M650 1156 H1110" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="880.0" y="1138" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">ConsumePendingAuth(id, provider, state)</text>
-<path d="M1110 1268 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="1225" y="1278" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: validate + remove attempt;</text>
-<text x="1225" y="1303" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">unlock</text>
-<path d="M1110 1380 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="880.0" y="1362" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Detached PendingAuth; verifier</text>
-<path d="M650 1492 H1600" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="1125.0" y="1474" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">POST token endpoint: code, verifier, client credentials; no store lock</text>
-<path d="M1600 1604 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="1125.0" y="1586" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Validated token response</text>
-<path d="M650 1716 H1110" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="880.0" y="1698" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">CompleteAuth(id, connection)</text>
-<path d="M1110 1828 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="1225" y="1838" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: save + rotate ID; keep</text>
-<text x="1225" y="1863" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">deadline; unlock</text>
-<path d="M1110 1940 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="880.0" y="1922" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">New ID; original session deadline</text>
-<path d="M650 2052 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="410.0" y="2034" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">303 frontend completion; rotated cookie</text>
-<path d="M170 2164 H650" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
-<text x="410.0" y="2146" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">POST /oauth/{provider}/token</text>
-<path d="M650 2276 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
-<text x="410.0" y="2258" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Access token for browser API calls</text>
-<text x="900.0" y="2414" font-size="18" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Time runs downward. Solid filled arrow: call; dashed open arrow: reply. Lock labels mark critical sections.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1131" viewBox="0 0 1200 1131" role="img" aria-labelledby="title desc"><title id="title">Authorization: consume, exchange, rotate</title><desc id="desc">Time runs downward. Invalid or replayed callbacks never reach the provider. Completion rejects logout, expiry, provider mismatch, and obsolete cookies.</desc><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#24364b" stroke-width="1.5"/></marker></defs><rect width="1200" height="1131" fill="white"/><g font-family="DejaVu Sans, sans-serif" fill="#15283c"><text x="600" y="42" text-anchor="middle" font-size="26" font-weight="bold">Authorization: consume, exchange, rotate</text>
+<text x="70.0" y="95" font-size="18" text-anchor="middle">Browser</text>
+<path d="M70.0 115 V1000" stroke="#a5b2bf" stroke-dasharray="5 5"/>
+<text x="423.3333333333333" y="95" font-size="18" text-anchor="middle">Mediator</text>
+<path d="M423.3333333333333 115 V1000" stroke="#a5b2bf" stroke-dasharray="5 5"/>
+<text x="776.6666666666666" y="95" font-size="18" text-anchor="middle">SQLite store</text>
+<path d="M776.6666666666666 115 V1000" stroke="#a5b2bf" stroke-dasharray="5 5"/>
+<text x="1130.0" y="95" font-size="18" text-anchor="middle">Provider</text>
+<path d="M1130.0 115 V1000" stroke="#a5b2bf" stroke-dasharray="5 5"/>
+<path d="M70.0 155 L423.3333333333333 155" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="246.66666666666666" y="145.0" font-size="16" text-anchor="middle">POST start; exact origin + CSRF header + {}</text>
+<text x="423.3333333333333" y="205" font-size="15" text-anchor="middle">Generate state and PKCE material</text>
+<path d="M423.3333333333333 271 L776.6666666666666 271" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="261.0" font-size="16" text-anchor="middle">BeginAuth: reuse/create + replace pending</text>
+<path d="M776.6666666666666 329 L423.3333333333333 329" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="319.0" font-size="16" text-anchor="middle">BrowserSession: cookie + absolute deadline</text>
+<path d="M423.3333333333333 387 L70.0 387" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="246.66666666666666" y="377.0" font-size="16" text-anchor="middle">authorization_url + protected cookie</text>
+<path d="M70.0 445 L1130.0 445" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="435.0" font-size="16" text-anchor="middle">Navigate with state + S256 challenge</text>
+<path d="M1130.0 503 L70.0 503" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="493.0" font-size="16" text-anchor="middle">Redirect with code + state</text>
+<path d="M70.0 561 L423.3333333333333 561" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="246.66666666666666" y="551.0" font-size="16" text-anchor="middle">GET callback with cookie</text>
+<path d="M423.3333333333333 619 L776.6666666666666 619" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="609.0" font-size="16" text-anchor="middle">ConsumeAuth: validate + delete pending</text>
+<path d="M776.6666666666666 677 L423.3333333333333 677" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="667.0" font-size="16" text-anchor="middle">Verifier + opaque AuthHandle</text>
+<path d="M423.3333333333333 735 L1130.0 735" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="776.6666666666666" y="725.0" font-size="16" text-anchor="middle">Exchange code outside SQL transaction</text>
+<path d="M1130.0 793 L423.3333333333333 793" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="776.6666666666666" y="783.0" font-size="16" text-anchor="middle">Validated token response</text>
+<path d="M423.3333333333333 851 L776.6666666666666 851" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="841.0" font-size="16" text-anchor="middle">CompleteAuth: save + rotate atomically</text>
+<path d="M776.6666666666666 909 L423.3333333333333 909" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="899.0" font-size="16" text-anchor="middle">Rotated BrowserSession; original deadline</text>
+<path d="M423.3333333333333 967 L70.0 967" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="246.66666666666666" y="957.0" font-size="16" text-anchor="middle">303 frontend completion + rotated cookie</text>
+<text x="600" y="1040" font-size="16" text-anchor="middle">Invalid or replayed callbacks never reach the provider.</text>
+<text x="600" y="1068" font-size="16" text-anchor="middle">Completion rejects logout, expiry, provider mismatch, and obsolete cookies.</text>
 </g></svg>

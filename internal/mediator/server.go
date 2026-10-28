@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"token-mediator/internal/session"
@@ -21,6 +22,9 @@ type Server struct {
 	store      *session.Store
 	limiter    *rateLimiter
 	httpServer *http.Server
+	requests   sync.WaitGroup
+	requestsMu sync.Mutex
+	draining   bool
 }
 
 func NewServer(cfg *Config, store *session.Store) *Server {
@@ -34,7 +38,7 @@ func NewServer(cfg *Config, store *session.Store) *Server {
 	// and store, but due to that we need to split the creation like this
 	s.httpServer = &http.Server{
 		Addr:    net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
-		Handler: s.routes(),
+		Handler: s.trackRequests(s.routes()),
 		// history lesson: slowloris attack ( 2009 ), single laptop
 		// opened hundreds of connections and sent headers extremely
 		// slowly at 1 byte every 10 seconds. Servers had to keep the
@@ -51,27 +55,54 @@ func NewServer(cfg *Config, store *session.Store) *Server {
 }
 
 func (s *Server) Run(ctx context.Context) error {
-	go func() {
-		// triggers sigterm from main context
-		<-ctx.Done()
+	listener, err := net.Listen("tcp", s.httpServer.Addr)
+	if err != nil {
+		return fmt.Errorf("server listen failure: %w", err)
+	}
+	return s.serve(ctx, listener)
+}
 
-		// once shutdown is triggers, wait max 5 seconds to allow graceful
-		// shutdown
+func (s *Server) trackRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.requestsMu.Lock()
+		if s.draining {
+			s.requestsMu.Unlock()
+			writeJSONError(w, "server_shutdown", http.StatusServiceUnavailable)
+			return
+		}
+		s.requests.Add(1)
+		s.requestsMu.Unlock()
+		defer s.requests.Done()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) serve(ctx context.Context, listener net.Listener) error {
+	shutdownDone := make(chan struct{})
+	runDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		select {
+		case <-ctx.Done():
+		case <-runDone:
+		}
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
-		s.httpServer.Shutdown(shutdownCtx)
+		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
+			s.httpServer.Close()
+		}
 	}()
-
-	log.Printf("Server listenng on %s:%d", s.cfg.Host, s.cfg.Port)
-
-	// listen and server must be blocking
-	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		// if you call shutdown, listen and server returns "http.ErrServerClosed", not an actual error
-		// so we filter
-		return fmt.Errorf("server failure, err = %w", err)
+	log.Printf("Server listening on %s:%d", s.cfg.Host, s.cfg.Port)
+	err := s.httpServer.Serve(listener)
+	close(runDone)
+	<-shutdownDone
+	s.requestsMu.Lock()
+	s.draining = true
+	s.requestsMu.Unlock()
+	s.requests.Wait()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("server failure: %w", err)
 	}
-
 	return nil
 }
 
@@ -111,7 +142,10 @@ func browserPreflight(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) sessionLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
-		s.store.Delete(session.ID(cookie.Value))
+		if err := s.store.Logout(r.Context(), session.ID(cookie.Value)); err != nil {
+			writeJSONError(w, "storage_unavailable", http.StatusServiceUnavailable)
+			return
+		}
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
@@ -150,24 +184,6 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		cookieID = session.ID(c.Value)
 	}
 
-	sessionID, created, err := s.store.GetOrCreate(cookieID, s.cfg.sessionLifetime)
-	if err != nil {
-		if errors.Is(err, session.ErrSessionLimit) {
-			writeJSONError(w, "session_limit_reached", http.StatusTooManyRequests)
-			return
-		}
-		http.Error(w, "failed to create session", http.StatusInternalServerError)
-		return
-	}
-	if created {
-		expiresAt, ok := s.store.ExpiresAt(sessionID)
-		if !ok {
-			http.Error(w, "invalid session", http.StatusBadRequest)
-			return
-		}
-		http.SetCookie(w, makeCookie(sessionID, expiresAt))
-	}
-
 	state, err := generateRandomString(32)
 	if err != nil {
 		http.Error(w, "failed to generate state", http.StatusInternalServerError)
@@ -180,15 +196,18 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.store.SetPendingAuth(sessionID, session.PendingAuth{
-		Provider:     providerName,
-		State:        state,
-		PKCEVerifier: verifier,
-		CreatedAt:    time.Now(),
-	}) {
-		http.Error(w, "invalid session", http.StatusBadRequest)
+	browser, err := s.store.BeginAuth(r.Context(), cookieID, session.PendingAuth{
+		Provider: providerName, State: state, PKCEVerifier: verifier,
+	})
+	if err != nil {
+		if errors.Is(err, session.ErrSessionLimit) {
+			writeJSONError(w, "session_limit_reached", http.StatusTooManyRequests)
+		} else {
+			writeJSONError(w, "storage_unavailable", http.StatusServiceUnavailable)
+		}
 		return
 	}
+	http.SetCookie(w, makeCookie(browser.ID, browser.ExpiresAt))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
@@ -217,8 +236,12 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 
 	// consume pending auth atomically so the flow cannot be replayed
-	pa, ok := s.store.ConsumePendingAuth(sessId, providerName, state)
-	if !ok {
+	verifier, handle, err := s.store.ConsumeAuth(r.Context(), sessId, providerName, state)
+	if errors.Is(err, session.ErrStorage) {
+		writeJSONError(w, "storage_unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if err != nil {
 		http.Error(w, "invalid auth state", http.StatusBadRequest)
 		return
 	}
@@ -230,7 +253,7 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// now use this code to fetch the access token from the provider
 
 	// use same context as the original request
-	resp, err := p.fetchAccessToken(code, pa.PKCEVerifier, r.Context())
+	resp, err := p.fetchAccessToken(code, verifier, r.Context())
 	if err != nil {
 		status := http.StatusBadGateway
 		var timeout net.Error
@@ -264,12 +287,18 @@ func (s *Server) providerOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		conn.ExpiresAt = time.Now().Add(time.Duration(*resp.ExpiresIn) * time.Second)
 	}
 
-	newID, expiresAt, err := s.store.CompleteAuth(sessId, *conn)
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+	defer cancel()
+	browser, err := s.store.CompleteAuth(persistCtx, handle, *conn)
+	if errors.Is(err, session.ErrStorage) {
+		writeJSONError(w, "storage_unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	if err != nil {
 		http.Error(w, "invalid session", http.StatusBadRequest)
 		return
 	}
-	http.SetCookie(w, makeCookie(newID, expiresAt))
+	http.SetCookie(w, makeCookie(browser.ID, browser.ExpiresAt))
 	http.Redirect(w, r, s.cfg.FeCompletion, http.StatusSeeOther)
 }
 
@@ -297,51 +326,12 @@ func (s *Server) providerToken(w http.ResponseWriter, r *http.Request) {
 	}
 	sessId := session.ID(c.Value)
 
-	conn, err := s.store.UpdateConnection(r.Context(), sessId, providerName, func(conn session.Connection) (*session.Connection, error) {
-		now := time.Now()
-		if conn.ExpiresAt.IsZero() || conn.ExpiresAt.Sub(now) > 2*time.Minute {
-			return &conn, nil
-		}
-		if conn.RefreshToken == "" || (!conn.RefreshExpiresAt.IsZero() && !now.Before(conn.RefreshExpiresAt)) {
-			if !now.Before(conn.ExpiresAt) {
-				return nil, session.ErrNoConnection
-			}
-			return &conn, nil
-		}
-		resp, err := p.refreshAccessToken(r.Context(), conn.RefreshToken)
-		if err != nil {
-			var upstream *tokenError
-			if errors.As(err, &upstream) {
-				if upstream.code == "invalid_grant" || upstream.code == "bad_refresh_token" {
-					return nil, session.ErrNoConnection
-				}
-				if upstream.uncertain {
-					return nil, err
-				}
-			}
-			return &conn, err
-		}
-		conn.AccessToken = resp.AccessToken
-		conn.ExpiresAt = time.Time{}
-		if resp.ExpiresIn != nil {
-			conn.ExpiresAt = time.Now().Add(time.Duration(*resp.ExpiresIn) * time.Second)
-		}
-		if resp.RefreshToken != nil {
-			conn.RefreshToken = *resp.RefreshToken
-			// A replacement token does not inherit the previous token's deadline.
-			conn.RefreshExpiresAt = time.Time{}
-		}
-		if resp.RefreshTokenExpiresIn != nil {
-			conn.RefreshExpiresAt = time.Now().Add(time.Duration(*resp.RefreshTokenExpiresIn) * time.Second)
-		}
-		if resp.Scope != nil {
-			conn.Scopes = *resp.Scope
-		}
-		return &conn, nil
-	})
+	conn, err := s.accessConnection(r.Context(), sessId, providerName, p)
 	if err != nil {
 		switch {
-		case errors.Is(err, session.ErrNoConnection):
+		case errors.Is(err, session.ErrStorage):
+			writeJSONError(w, "storage_unavailable", http.StatusServiceUnavailable)
+		case errors.Is(err, session.ErrNoConnection), errors.Is(err, session.ErrNoSession), errors.Is(err, session.ErrStale), errors.Is(err, session.ErrRefreshing):
 			writeJSONError(w, "reauthorization_required", http.StatusUnauthorized)
 		default:
 			var timeout net.Error

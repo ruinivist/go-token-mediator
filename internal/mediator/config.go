@@ -12,6 +12,7 @@ import (
 // ==== models =====
 
 type Config struct {
+	DatabasePath       string                    `json:"database_path"`
 	Host               string                    `json:"host"`
 	Port               int                       `json:"port"`
 	FeOrigin           string                    `json:"frontend_origin_url"`
@@ -63,6 +64,9 @@ func LoadConfig(path string) (*Config, error) {
 // Check no keys are missing. Config does NOT default to any values
 // everything MUST be explicit
 func validate(c *Config) error {
+	if c.DatabasePath == "" {
+		return errors.New("missing 'database_path'")
+	}
 	if c.RateLimitPerMinute <= 0 || c.RateLimitMaxIPs <= 0 {
 		return errors.New("'rate_limit_per_minute' and 'rate_limit_max_ips' must be positive integers")
 	}
@@ -100,3 +104,5 @@ func validate(c *Config) error {
 	}
 	return nil
 }
+
+func (c *Config) SessionDuration() time.Duration { return c.sessionLifetime }

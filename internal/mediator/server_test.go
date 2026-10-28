@@ -3,6 +3,7 @@ package mediator
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -26,24 +27,23 @@ func browserRequest(path, body string) *http.Request {
 func TestSessionLogout(t *testing.T) {
 	for _, state := range []string{"active", "missing cookie", "unknown", "expired", "deleted"} {
 		t.Run(state, func(t *testing.T) {
-			store, id, handler := refreshFixture(t, "", time.Hour, false)
-			otherID, err := store.Create(time.Hour)
-			if err != nil {
+			store, browser, handler := refreshFixture(t, "", time.Hour, false)
+			id := browser.ID
+			other := authorize(t, store, "", session.Connection{Provider: "mock", AccessToken: "other"})
+			if _, err := store.BeginAuth(t.Context(), id, session.PendingAuth{Provider: "mock", State: "state"}); err != nil {
 				t.Fatal(err)
-			}
-			if !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", CreatedAt: time.Now()}) {
-				t.Fatal("set pending auth failed")
 			}
 			switch state {
 			case "unknown":
 				id = "unknown"
 			case "expired":
-				id, err = store.Create(-time.Second)
-				if err != nil {
+				store, browser = expiredSession(t)
+				id = browser.ID
+				handler = NewServer(&Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}, store).routes()
+			case "deleted":
+				if err := store.Logout(t.Context(), id); err != nil {
 					t.Fatal(err)
 				}
-			case "deleted":
-				store.Delete(id)
 			}
 			for range 2 {
 				req := browserRequest("/session/logout", "{}")
@@ -63,24 +63,26 @@ func TestSessionLogout(t *testing.T) {
 				if c.Name != sessionCookieName || c.Value != "" || c.MaxAge != -1 || c.Expires.IsZero() || !c.Expires.Before(time.Now()) || c.Path != "/" || c.Domain != "" || !c.Secure || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode {
 					t.Fatalf("invalid clearing cookie: %+v", c)
 				}
-				if !store.Has(otherID) {
-					t.Fatal("logout deleted another session")
+				if state != "expired" {
+					if _, _, err := store.LoadConnection(t.Context(), other.ID, "mock"); err != nil {
+						t.Fatal("logout deleted another session")
+					}
 				}
 				if state == "missing cookie" {
-					if !store.Has(id) {
-						t.Fatal("logout without cookie deleted a session")
+					if _, _, err := store.LoadConnection(t.Context(), id, "mock"); err != nil {
+						t.Fatal("logout without cookie deleted session")
 					}
 					continue
 				}
-				if store.Has(id) {
+				if _, _, err := store.LoadConnection(t.Context(), id, "mock"); !errors.Is(err, session.ErrNoSession) {
 					t.Fatal("session survived logout")
 				}
 				for _, provider := range []string{"mock", "other"} {
-					if _, ok := store.GetConnection(id, provider); ok {
+					if _, _, err := store.LoadConnection(t.Context(), id, provider); !errors.Is(err, session.ErrNoSession) {
 						t.Fatal("connection survived logout")
 					}
 				}
-				if _, ok := store.ConsumePendingAuth(id, "mock", "state"); ok {
+				if _, _, err := store.ConsumeAuth(t.Context(), id, "mock", "state"); !errors.Is(err, session.ErrInvalidAuth) {
 					t.Fatal("pending authorization survived logout")
 				}
 				token := httptest.NewRecorder()
@@ -107,11 +109,12 @@ func TestSessionLogout_InFlightOAuth(t *testing.T) {
 			}))
 			defer provider.Close()
 			defer unblock()
-			store, id, handler := refreshFixture(t, provider.URL, time.Minute, true)
+			store, browser, handler := refreshFixture(t, provider.URL, time.Minute, true)
+			id := browser.ID
 			req := browserTokenRequest(id)
 			wantStatus := http.StatusUnauthorized
 			if operation == "callback" {
-				if !store.SetPendingAuth(id, session.PendingAuth{Provider: "mock", State: "state", PKCEVerifier: "verifier", CreatedAt: time.Now()}) {
+				if _, err := store.BeginAuth(t.Context(), id, session.PendingAuth{Provider: "mock", State: "state", PKCEVerifier: "verifier"}); err != nil {
 					t.Fatal("set pending auth failed")
 				}
 				req = httptest.NewRequest(http.MethodGet, "/oauth/mock/callback?code=code&state=state", nil)
@@ -144,7 +147,7 @@ func TestSessionLogout_InFlightOAuth(t *testing.T) {
 			if completed.Code != wantStatus || strings.Contains(completed.Body.String(), "new") || len(completed.Result().Cookies()) != 0 {
 				t.Fatalf("in-flight %s response = %d %s", operation, completed.Code, completed.Body.String())
 			}
-			if store.Has(id) {
+			if _, _, err := store.LoadConnection(t.Context(), id, "mock"); !errors.Is(err, session.ErrNoSession) {
 				t.Fatal("in-flight OAuth restored deleted session")
 			}
 		})
@@ -154,7 +157,7 @@ func TestSessionLogout_InFlightOAuth(t *testing.T) {
 // Checks that a client cannot hold a POST open by leaving its body unfinished.
 func TestServer_UnfinishedBody(t *testing.T) {
 	cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
-	server := NewServer(cfg, session.NewStore(1000))
+	server := NewServer(cfg, newTestStore(t, 1000, time.Hour))
 	if server.httpServer.ReadTimeout <= 0 {
 		t.Fatal("server must have a request read timeout")
 	}
@@ -201,11 +204,7 @@ func TestProviderToken_Response(t *testing.T) {
 		{name: "less than thirty seconds", lifetime: 15 * time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			store := session.NewStore(1000)
-			id, err := store.Create(time.Hour)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store := newTestStore(t, 1000, time.Hour)
 			conn := session.Connection{Provider: "mock", AccessToken: "own-token", Scopes: tc.scope}
 			if tc.lifetime > 2*time.Minute || tc.lifetime == 0 {
 				conn.RefreshToken = "private-refresh"
@@ -213,17 +212,9 @@ func TestProviderToken_Response(t *testing.T) {
 			if tc.lifetime != 0 {
 				conn.ExpiresAt = time.Now().Add(tc.lifetime)
 			}
-			if !store.SaveConnection(id, conn) {
-				t.Fatal("save connection failed")
-			}
-			otherID, err := store.Create(time.Hour)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !store.SaveConnection(otherID, session.Connection{Provider: "mock", AccessToken: "other-token"}) ||
-				!store.SaveConnection(id, session.Connection{Provider: "other", AccessToken: "other-provider-token"}) {
-				t.Fatal("save other connections failed")
-			}
+			browser := authorize(t, store, "", conn, session.Connection{Provider: "other", AccessToken: "other-provider-token"})
+			id := browser.ID
+			authorize(t, store, "", session.Connection{Provider: "mock", AccessToken: "other-token"})
 			cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}, "other": {}}}
 			req := browserRequest("/oauth/mock/token", "{}")
 			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
@@ -276,27 +267,26 @@ func TestProviderToken_Response(t *testing.T) {
 func TestProviderToken_Unauthorized(t *testing.T) {
 	for _, name := range []string{"missing cookie", "unknown cookie", "expired session", "deleted session", "missing connection", "other provider only", "expired token"} {
 		t.Run(name, func(t *testing.T) {
-			store := session.NewStore(1000)
-			lifetime := time.Hour
-			if name == "expired session" {
-				lifetime = -time.Second
-			}
-			id, err := store.Create(lifetime)
+			store := newTestStore(t, 1000, time.Hour)
+			browser, err := store.BeginAuth(t.Context(), "", session.PendingAuth{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if name == "deleted session" {
-				store.Delete(id)
-			}
-			if name == "expired token" {
-				if !store.SaveConnection(id, session.Connection{Provider: "mock", AccessToken: "expired", ExpiresAt: time.Now().Add(-time.Second)}) {
-					t.Fatal("save expired connection failed")
+			id := browser.ID
+			switch name {
+			case "expired session":
+				store, browser = expiredSession(t)
+				id = browser.ID
+			case "deleted session":
+				if err := store.Logout(t.Context(), id); err != nil {
+					t.Fatal(err)
 				}
-			}
-			if name == "other provider only" {
-				if !store.SaveConnection(id, session.Connection{Provider: "other", AccessToken: "other-token"}) {
-					t.Fatal("save other connection failed")
-				}
+			case "expired token":
+				browser = authorize(t, store, id, session.Connection{Provider: "mock", AccessToken: "expired", ExpiresAt: time.Now().Add(-time.Second)})
+				id = browser.ID
+			case "other provider only":
+				browser = authorize(t, store, id, session.Connection{Provider: "other", AccessToken: "other-token"})
+				id = browser.ID
 			}
 			req := browserRequest("/oauth/mock/token", "{}")
 			if name == "unknown cookie" {
@@ -347,16 +337,14 @@ func TestValidateBrowserPost_Validation(t *testing.T) {
 			{name: "charset and whitespace", body: " {} \n", header: "Content-Type", value: "application/json; charset=utf-8", status: map[string]int{"start": 200, "token": 401, "logout": 204}[route]},
 		} {
 			t.Run(route+"/"+tc.name, func(t *testing.T) {
-				store := session.NewStore(1000)
+				store := newTestStore(t, 1000, time.Hour)
 				cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {AuthUrl: "https://provider.example/authorize"}}}
 				path := "/oauth/mock/" + route
 				if route == "logout" {
 					path = "/session/logout"
 				}
-				id, err := store.Create(time.Hour)
-				if err != nil {
-					t.Fatal(err)
-				}
+				browser := authorize(t, store, "", session.Connection{Provider: "probe", AccessToken: "preserved"})
+				id := browser.ID
 				req := browserRequest(path, tc.body)
 				req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(id)})
 				if tc.header != "" {
@@ -367,8 +355,8 @@ func TestValidateBrowserPost_Validation(t *testing.T) {
 				if rec.Code != tc.status {
 					t.Fatalf("status = %d, want %d, body = %s", rec.Code, tc.status, rec.Body.String())
 				}
-				if tc.status >= 400 && !store.Has(id) {
-					t.Fatal("rejected request deleted the session")
+				if _, _, err := store.LoadConnection(t.Context(), id, "probe"); tc.status >= 400 && err != nil {
+					t.Fatal("rejected request deleted session")
 				}
 				if tc.status >= 400 && len(rec.Result().Cookies()) != 0 {
 					t.Fatal("rejected request must not create a session cookie")
@@ -456,7 +444,7 @@ func TestProviderPreflight(t *testing.T) {
 // Checks that unknown providers return 404 and unsupported HTTP methods return 405.
 func TestProviderToken_Routing(t *testing.T) {
 	cfg := &Config{RateLimitPerMinute: 60, RateLimitMaxIPs: 10000, FeOrigin: "https://frontend.example", Providers: map[string]ProviderConfig{"mock": {}}}
-	handler := NewServer(cfg, session.NewStore(1000)).routes()
+	handler := NewServer(cfg, newTestStore(t, 1000, time.Hour)).routes()
 	for _, tc := range []struct {
 		method, path string
 		status       int
@@ -484,7 +472,7 @@ func TestServer_Health(t *testing.T) {
 		t.Fatalf("failed to load fixture config: %v", err)
 	}
 
-	store := session.NewStore(1000)
+	store := newTestStore(t, 1000, time.Hour)
 	srv := NewServer(cfg, store)
 
 	// Simulate GET /health request
@@ -506,7 +494,7 @@ func TestOAuthStart_SessionLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg.SessionLimit = 1
-	store := session.NewStore(cfg.SessionLimit)
+	store := newTestStore(t, cfg.SessionLimit, cfg.sessionLifetime)
 	handler := NewServer(cfg, store).routes()
 	start := func(cookie *http.Cookie) *httptest.ResponseRecorder {
 		req := browserRequest("/oauth/github/start", "{}")
@@ -530,7 +518,7 @@ func TestOAuthStart_SessionLimit(t *testing.T) {
 	if len(full.Result().Cookies()) != 0 || full.Header().Get("Access-Control-Allow-Origin") != cfg.FeOrigin || full.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal("capacity rejection set a cookie or lost browser response protections")
 	}
-	if reused := start(cookie); reused.Code != http.StatusOK || len(reused.Result().Cookies()) != 0 {
+	if reused := start(cookie); reused.Code != http.StatusOK || len(reused.Result().Cookies()) != 1 {
 		t.Fatalf("existing session at capacity = %d: %s", reused.Code, reused.Body.String())
 	}
 }
@@ -552,7 +540,7 @@ func TestOAuthStart_SessionLifetime(t *testing.T) {
 			if err := validate(cfg); err != nil {
 				t.Fatal(err)
 			}
-			store := session.NewStore(1000)
+			store := newTestStore(t, 1000, cfg.sessionLifetime)
 			handler := NewServer(cfg, store).routes()
 			start := func(cookie *http.Cookie) *httptest.ResponseRecorder {
 				req := browserRequest("/oauth/github/start", "{}")
@@ -580,20 +568,24 @@ func TestOAuthStart_SessionLifetime(t *testing.T) {
 				t.Fatalf("unexpected cookie expiry: %v", cookie.Expires)
 			}
 			id := session.ID(cookie.Value)
-			deadline, ok := store.ExpiresAt(id)
-			if !ok || deadline.Before(before.Add(cfg.sessionLifetime)) || deadline.After(after.Add(cfg.sessionLifetime)) {
+			metadata, err := store.BeginAuth(t.Context(), id, session.PendingAuth{})
+			deadline := metadata.ExpiresAt
+			if err != nil || deadline.Before(before.Add(cfg.sessionLifetime)) || deadline.After(after.Add(cfg.sessionLifetime)) {
 				t.Fatalf("unexpected session deadline: %v", deadline)
 			}
 			if !cookie.Expires.Equal(deadline.UTC().Truncate(time.Second)) {
 				t.Fatal("cookie does not match stored deadline")
 			}
-			if rec := start(cookie); len(rec.Result().Cookies()) != 0 {
-				t.Fatal("reusing session renewed cookie")
+			if rec := start(cookie); len(rec.Result().Cookies()) != 1 || !rec.Result().Cookies()[0].Expires.Equal(cookie.Expires) {
+				t.Fatal("reusing session changed cookie deadline")
 			}
-			if after, ok := store.ExpiresAt(id); !ok || !after.Equal(deadline) {
+			metadata, err = store.BeginAuth(t.Context(), id, session.PendingAuth{})
+			if err != nil || !metadata.ExpiresAt.Equal(deadline) {
 				t.Fatal("reusing session changed deadline")
 			}
-			store.Delete(id)
+			if err := store.Logout(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
 			if rec := start(cookie); len(rec.Result().Cookies()) != 1 || rec.Result().Cookies()[0].Value == cookie.Value {
 				t.Fatal("unknown cookie did not create a new session")
 			}

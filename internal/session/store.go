@@ -1,363 +1,484 @@
-// Package session owns in-memory session state and its synchronization.
-// The HTTP OAuth flow uses it to manage pending authorization and connections.
+// Package session owns durable SQLite sessions and guarded credential writes.
+// The mediator uses its transactions without holding them during provider calls.
 package session
 
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
+
+	"modernc.org/sqlite"
 )
 
 // ---------- Models ----------
 
 type ID string
 
-// global session state for all users
-type Store struct {
-	mtx      sync.RWMutex
-	sessions map[ID]*session
-	limit    int
+type BrowserSession struct {
+	ID        ID
+	ExpiresAt time.Time
 }
 
-// main state for per user session details
-type session struct {
-	id          ID
-	expiresAt   time.Time
-	pendingAuth *PendingAuth
-	connections map[string]*Connection // provider -> connection
-	updates     map[string]*connectionUpdate
-}
-
-func (s *session) expired(now time.Time) bool {
-	return !now.Before(s.expiresAt)
-}
-
-// latest oauth flow started for a session, valid for 10 mins
 type PendingAuth struct {
 	Provider     string
-	State        string    // 32 bytes, echoed back
-	PKCEVerifier string    // we send this to prove hash was by us
-	CreatedAt    time.Time // reject if more than 10 mins
+	State        string
+	PKCEVerifier string
 }
 
-// note: token scheme is always bearer, assumed
-
-// per provider, holds the tokens, scopes and expiry info
+// Connection is a detached set of bearer credentials; zero deadlines mean unknown.
+// The mediator uses it for provider calls and browser access-token responses.
 type Connection struct {
-	Provider     string
-	AccessToken  string
-	RefreshToken string
-	// in case we got denied, store from response what scoped
-	// were actually allowed
+	Provider         string
+	AccessToken      string
+	RefreshToken     string
 	Scopes           string
 	ExpiresAt        time.Time
-	RefreshExpiresAt time.Time // zero means the provider did not supply an expiry
+	RefreshExpiresAt time.Time
 }
 
-// ErrNoConnection indicates a missing, expired, or replaced connection.
-var ErrNoConnection = errors.New("no active provider connection")
-
-var ErrSessionLimit = errors.New("session limit reached")
-
-type connectionUpdate struct {
-	done chan struct{}
-	err  error
+// AuthHandle binds a consumed authorization to its original cookie and provider.
+// Only ConsumeAuth can create a usable handle for callback completion.
+type AuthHandle struct {
+	session  int64
+	cookie   ID
+	provider string
 }
 
-// ---------- Session access ----------
+// ConnectionRef binds conditional writes to a stable session and row revision.
+// LoadConnection returns it without exposing SQL identities.
+type ConnectionRef struct {
+	session  int64
+	row      int64
+	revision int64
+	provider string
+}
 
-// Make a new session store, expected to be used as a singleton
-func NewStore(limit int) *Store {
-	return &Store{
-		sessions: make(map[ID]*session),
-		limit:    limit,
+type RefreshClaim struct{ ref ConnectionRef }
+
+type Store struct {
+	db       *sql.DB
+	lifetime time.Duration
+	limit    int
+	mu       sync.Mutex
+	flights  map[refreshKey]*refreshFlight
+}
+
+var (
+	ErrNoSession    = errors.New("no active session")
+	ErrNoConnection = errors.New("no active provider connection")
+	ErrInvalidAuth  = errors.New("invalid authorization")
+	ErrSessionLimit = errors.New("session limit reached")
+	ErrStale        = errors.New("stale connection reference")
+	ErrRefreshing   = errors.New("connection refresh unfinished")
+	ErrStorage      = errors.New("session storage unavailable")
+)
+
+// ---------- Database lifecycle ----------
+
+var openMu sync.Mutex
+
+var schema = []string{
+	`CREATE TABLE sessions (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ cookie TEXT NOT NULL UNIQUE,
+ expires_at INTEGER NOT NULL
+)`,
+	`CREATE TABLE pending_auth (
+ session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+ provider TEXT NOT NULL,
+ state TEXT NOT NULL,
+ verifier TEXT NOT NULL,
+ created_at INTEGER NOT NULL
+)`,
+	`CREATE TABLE connections (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+ provider TEXT NOT NULL,
+ access_token TEXT NOT NULL,
+ refresh_token TEXT NOT NULL,
+ scopes TEXT NOT NULL,
+ expires_at INTEGER,
+ refresh_expires_at INTEGER,
+ revision INTEGER NOT NULL DEFAULT 1,
+ refreshing INTEGER NOT NULL DEFAULT 0 CHECK(refreshing IN (0,1)),
+ UNIQUE(session_id, provider)
+)`,
+}
+
+// Open acquires exclusive database ownership before schema setup and recovery.
+// Runtime startup calls it before starting cleanup or serving HTTP.
+func Open(ctx context.Context, path string, lifetime time.Duration, limit int) (*Store, error) {
+	if path == "" || lifetime <= 0 || limit <= 0 {
+		return nil, errors.New("database path, positive lifetime and capacity required")
 	}
-}
-
-// Create adds a session with a fixed lifetime.
-func (s *Store) Create(lifetime time.Duration) (ID, error) {
-	id, err := generateID()
+	path, err := filepath.Abs(path)
 	if err != nil {
-		return "", err
+		return nil, storage(err)
 	}
-
-	sess := &session{
-		id:          id,
-		expiresAt:   time.Now().Add(lifetime),
-		connections: make(map[string]*Connection),
-		updates:     make(map[string]*connectionUpdate),
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return nil, storage(err)
 	}
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	if len(s.sessions) >= s.limit {
-		return "", ErrSessionLimit
-	}
-	s.sessions[id] = sess
-	return id, nil
-}
-
-// Has reports whether a session exists and has not expired.
-func (s *Store) Has(id ID) bool {
-	// RWMutex is writer biased
-	// "R"Lock so concurrent reads can work
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-
-	sess, ok := s.sessions[id]
-	return ok && !sess.expired(time.Now())
-}
-
-// ExpiresAt returns an active session's deadline.
-func (s *Store) ExpiresAt(id ID) (time.Time, bool) {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-	sess, ok := s.sessions[id]
-	if !ok || sess.expired(time.Now()) {
-		return time.Time{}, false
-	}
-	return sess.expiresAt, true
-}
-
-// GetConnection returns a detached connection value from an active session.
-func (s *Store) GetConnection(id ID, provider string) (Connection, bool) {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-
-	sess, ok := s.sessions[id]
-	if !ok || sess.expired(time.Now()) {
-		return Connection{}, false
-	}
-	connection, ok := sess.connections[provider]
-	if !ok {
-		return Connection{}, false
-	}
-	return *connection, true
-}
-
-// GetOrCreate returns an existing active session ID or creates a new one.
-// The boolean reports true if a new session was created.
-func (s *Store) GetOrCreate(id ID, lifetime time.Duration) (ID, bool, error) {
-	if id != "" && s.Has(id) {
-		return id, false, nil
-	}
-
-	newID, err := s.Create(lifetime)
-	if err != nil {
-		return "", false, err
-	}
-	return newID, true, nil
-}
-
-// logout by session id
-func (s *Store) Delete(id ID) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	delete(s.sessions, id)
-}
-
-// ---------- OAuth state ----------
-
-// CompleteAuth saves a connection and rotates its session ID atomically.
-// The OAuth callback uses the returned ID and original deadline for its cookie.
-//
-// More than meets the eye?
-// This was done to avoid a RACE in my older code where I saved the sessiona and then
-// rotated the id separately, so for a moment the old id was still usable alonside the new one
-func (s *Store) CompleteAuth(id ID, connection Connection) (ID, time.Time, error) {
-	newID, err := generateID()
-	if err != nil {
-		return "", time.Time{}, err
-	}
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	sess, ok := s.sessions[id]
-	if !ok || sess.expired(time.Now()) {
-		return "", time.Time{}, ErrNoConnection
-	}
-
-	sess.connections[connection.Provider] = &connection
-	delete(s.sessions, id)
-	sess.id = newID
-	s.sessions[newID] = sess
-	return newID, sess.expiresAt, nil
-}
-
-// SetPendingAuth replaces the session's pending OAuth flow.
-func (s *Store) SetPendingAuth(id ID, pending PendingAuth) bool {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	sess, ok := s.sessions[id]
-	if !ok || sess.expired(time.Now()) {
-		return false
-	}
-	sess.pendingAuth = &pending
-	return true
-}
-
-// ConsumePendingAuth validates and removes a pending OAuth flow atomically.
-func (s *Store) ConsumePendingAuth(id ID, provider, state string) (*PendingAuth, bool) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	sess, ok := s.sessions[id]
-	if !ok || sess.expired(time.Now()) || sess.pendingAuth == nil {
-		return nil, false
-	}
-
-	pending := sess.pendingAuth
-	if pending.Provider != provider || pending.State != state || time.Since(pending.CreatedAt) > 10*time.Minute {
-		return nil, false
-	}
-
-	sess.pendingAuth = nil
-	copy := *pending
-	return &copy, true
-}
-
-// SaveConnection stores a provider connection in an active session.
-func (s *Store) SaveConnection(id ID, connection Connection) bool {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	sess, ok := s.sessions[id]
-	if !ok || sess.expired(time.Now()) {
-		return false
-	}
-	sess.connections[connection.Provider] = &connection
-	return true
-}
-
-// UpdateConnection shares one in-flight callback result per session/provider.
-// The callback runs outside the store lock; nil deletes the connection, even on error.
-func (s *Store) UpdateConnection(ctx context.Context, id ID, provider string, update func(Connection) (*Connection, error)) (Connection, error) {
-	if err := ctx.Err(); err != nil {
-		return Connection{}, err
-	}
-	s.mtx.Lock()
-
-	// if the session itself expired ask to reauth
-	sess, ok := s.sessions[id]
-	if !ok || sess.expired(time.Now()) {
-		s.mtx.Unlock()
-		return Connection{}, ErrNoConnection
-	}
-
-	// is a refresh in flight?
-	flight := sess.updates[provider]
-	if flight != nil {
-		s.mtx.Unlock()
-		// Cancelling a waiter stops only its wait, not the running callback.
-		select {
-		case <-ctx.Done():
-			return Connection{}, ctx.Err()
-		case <-flight.done:
+	// Serialize creation so another Open cannot lock a newly created file before its creator closes it.
+	openMu.Lock()
+	defer openMu.Unlock()
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+	if err == nil {
+		if err := file.Close(); err != nil {
+			return nil, storage(err)
 		}
-		return s.connectionUpdateResult(id, provider, sess, flight)
+	} else if !errors.Is(err, os.ErrExist) {
+		return nil, storage(err)
 	}
-
-	original := sess.connections[provider]
-	if original == nil {
-		s.mtx.Unlock()
-		return Connection{}, ErrNoConnection
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, storage(err)
 	}
-	// Register before unlocking so another request cannot refresh the same token.
-	flight = &connectionUpdate{done: make(chan struct{})}
-	sess.updates[provider] = flight
-	s.mtx.Unlock()
-
-	// Pass a copy and leave unrelated sessions/providers free during provider HTTP calls.
-	connection, err := update(*original)
-
-	s.mtx.Lock()
-	// The callback's pointer controls storage; an error alone does not delete credentials.
-	flight.err = err
-	switch {
-	case s.sessions[sess.id] != sess || sess.expired(time.Now()) || sess.connections[provider] != original:
-		// A refresh must not restore a deleted session or overwrite a reconnect.
-		flight.err = ErrNoConnection
-	case connection == nil:
-		delete(sess.connections, provider)
-	default:
-		copy := *connection
-		sess.connections[provider] = &copy
+	if !info.Mode().IsRegular() {
+		return nil, storage(errors.New("database path must be a regular file"))
 	}
-	delete(sess.updates, provider)
-	// Publish the completed result before waking all waiting requests.
-	close(flight.done)
-	s.mtx.Unlock()
-	return s.connectionUpdateResult(id, provider, sess, flight)
+	// Closing an extra descriptor for an existing file would release SQLite's POSIX locks.
+	if err := os.Chmod(path, 0600); err != nil {
+		return nil, storage(err)
+	}
+	u := url.URL{Scheme: "file", Path: path}
+	q := url.Values{}
+	// DSN pragmas run on every physical connection, including replacements.
+	for _, pragma := range []string{"busy_timeout(5000)", "locking_mode(EXCLUSIVE)", "journal_mode(DELETE)", "synchronous(EXTRA)", "foreign_keys(ON)"} {
+		q.Add("_pragma", pragma)
+	}
+	q.Set("_txlock", "immediate")
+	u.RawQuery = q.Encode()
+	connector, err := sqlite.NewConnector(u.String())
+	if err != nil {
+		return nil, storage(err)
+	}
+	db := sql.OpenDB(exclusiveConnector{connector})
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	s := &Store{db: db, lifetime: lifetime, limit: limit, flights: make(map[refreshKey]*refreshFlight)}
+	if err := s.initialize(ctx); err != nil {
+		db.Close()
+		return nil, storage(err)
+	}
+	return s, nil
 }
 
-// connectionUpdateResult reads the current connection after a successful update.
-// A delayed waiter may see a newer refresh's credentials; shared errors are preserved.
-func (s *Store) connectionUpdateResult(id ID, provider string, sess *session, flight *connectionUpdate) (Connection, error) {
-	// Deletion or reconnect may have happened between completion and a waiter waking.
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-	if s.sessions[id] != sess || sess.expired(time.Now()) {
-		return Connection{}, ErrNoConnection
+func (s *Store) initialize(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
 	}
-	if flight.err != nil {
-		return Connection{}, flight.err
+	defer tx.Rollback()
+	var version int
+	if err := tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+		return err
 	}
-	connection := sess.connections[provider]
-	if connection == nil {
-		return Connection{}, ErrNoConnection
+	if version != 0 && version != 1 {
+		return errors.New("unsupported session schema version")
 	}
-	return *connection, nil
-}
-
-// ---------- Cleanup ----------
-
-// background worker for periodic cleanup of expired sessions
-func (s *Store) StartCleanupWorker(ctx context.Context, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-
-	go func() {
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				s.cleanupExpired()
-			case <-ctx.Done():
-				return
+	rows, err := tx.QueryContext(ctx, "SELECT sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name")
+	if err != nil {
+		return err
+	}
+	var existing []string
+	for rows.Next() {
+		var statement string
+		if err := rows.Scan(&statement); err != nil {
+			rows.Close()
+			return err
+		}
+		existing = append(existing, statement)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if version == 0 {
+		if len(existing) != 0 {
+			return errors.New("unrecognized existing session schema")
+		}
+		for _, statement := range schema {
+			if _, err := tx.ExecContext(ctx, statement); err != nil {
+				return err
 			}
 		}
-	}()
-}
-
-// for all session, remove ones which are expired
-func (s *Store) cleanupExpired() {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	now := time.Now()
-	for id, sess := range s.sessions {
-		if sess.expired(now) {
-			// this delete while iteration is perfectly valid in go, unlike
-			// some other langs
-			delete(s.sessions, id)
+		if _, err := tx.ExecContext(ctx, "PRAGMA user_version = 1"); err != nil {
+			return err
+		}
+	} else {
+		expected := []string{schema[2], schema[1], schema[0]}
+		if len(existing) != len(expected) {
+			return errors.New("unrecognized session schema")
+		}
+		for i := range expected {
+			if existing[i] != expected[i] {
+				return errors.New("unrecognized session schema")
+			}
 		}
 	}
+	// A committed claim may have consumed a rotating token before interruption.
+	if _, err := tx.ExecContext(ctx, "DELETE FROM connections WHERE refreshing = 1"); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
-// ---------- helpers ------------
+func (s *Store) Close() error { return storage(s.db.Close()) }
+
+// ---------- Authorization transactions ----------
+
+// BeginAuth replaces pending authorization in an active or newly allocated session.
+// The returned browser metadata preserves the original absolute deadline.
+func (s *Store) BeginAuth(ctx context.Context, cookie ID, pending PendingAuth) (BrowserSession, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC()
+	var key, deadline int64
+	err = tx.QueryRowContext(ctx, "SELECT id, expires_at FROM sessions WHERE cookie = ? AND expires_at > ?", cookie, now.UnixMicro()).Scan(&key, &deadline)
+	if errors.Is(err, sql.ErrNoRows) {
+		var count int
+		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM sessions").Scan(&count); err != nil {
+			return BrowserSession{}, storage(err)
+		}
+		if count >= s.limit {
+			return BrowserSession{}, ErrSessionLimit
+		}
+		cookie, err = generateID()
+		if err != nil {
+			return BrowserSession{}, storage(err)
+		}
+		deadline = now.Add(s.lifetime).UnixMicro()
+		result, err := tx.ExecContext(ctx, "INSERT INTO sessions(cookie, expires_at) VALUES (?, ?)", cookie, deadline)
+		if err != nil {
+			return BrowserSession{}, storage(err)
+		}
+		key, err = result.LastInsertId()
+		if err != nil {
+			return BrowserSession{}, storage(err)
+		}
+	} else if err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO pending_auth(session_id, provider, state, verifier, created_at) VALUES (?, ?, ?, ?, ?)
+ ON CONFLICT(session_id) DO UPDATE SET provider=excluded.provider, state=excluded.state, verifier=excluded.verifier, created_at=excluded.created_at`, key, pending.Provider, pending.State, pending.PKCEVerifier, now.UnixMicro())
+	if err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	return BrowserSession{cookie, time.UnixMicro(deadline).UTC()}, nil
+}
+
+// ConsumeAuth removes only an active session's matching, unexpired attempt.
+// The callback receives its verifier and handle before any provider exchange.
+func (s *Store) ConsumeAuth(ctx context.Context, cookie ID, provider, state string) (string, AuthHandle, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", AuthHandle{}, storage(err)
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC()
+	var key int64
+	var verifier string
+	err = tx.QueryRowContext(ctx, `SELECT s.id, p.verifier FROM sessions s JOIN pending_auth p ON p.session_id=s.id
+ WHERE s.cookie=? AND s.expires_at>? AND p.provider=? AND p.state=? AND p.created_at>=?`, cookie, now.UnixMicro(), provider, state, now.Add(-10*time.Minute).UnixMicro()).Scan(&key, &verifier)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", AuthHandle{}, ErrInvalidAuth
+	}
+	if err != nil {
+		return "", AuthHandle{}, storage(err)
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM pending_auth WHERE session_id=?", key); err != nil {
+		return "", AuthHandle{}, storage(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return "", AuthHandle{}, storage(err)
+	}
+	return verifier, AuthHandle{key, cookie, provider}, nil
+}
+
+// CompleteAuth saves the handle's provider and rotates its original cookie atomically.
+// Callback completion cannot restore a logged-out session or overwrite a later rotation.
+func (s *Store) CompleteAuth(ctx context.Context, handle AuthHandle, connection Connection) (BrowserSession, error) {
+	if connection.Provider != handle.provider {
+		return BrowserSession{}, ErrInvalidAuth
+	}
+	cookie, err := generateID()
+	if err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	defer tx.Rollback()
+	var deadline int64
+	err = tx.QueryRowContext(ctx, `UPDATE sessions SET cookie=? WHERE id=? AND cookie=? AND expires_at>? RETURNING expires_at`, cookie, handle.session, handle.cookie, time.Now().UnixMicro()).Scan(&deadline)
+	if errors.Is(err, sql.ErrNoRows) {
+		return BrowserSession{}, ErrInvalidAuth
+	}
+	if err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	// Delete and insert give reconnects a never-reused row identity.
+	if _, err := tx.ExecContext(ctx, "DELETE FROM connections WHERE session_id=? AND provider=?", handle.session, handle.provider); err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO connections(session_id,provider,access_token,refresh_token,scopes,expires_at,refresh_expires_at) VALUES (?,?,?,?,?,?,?)`, handle.session, connection.Provider, connection.AccessToken, connection.RefreshToken, connection.Scopes, deadlineValue(connection.ExpiresAt), deadlineValue(connection.RefreshExpiresAt))
+	if err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return BrowserSession{}, storage(err)
+	}
+	return BrowserSession{cookie, time.UnixMicro(deadline).UTC()}, nil
+}
+
+// ---------- Connection reads and conditional writes ----------
+
+// Acquire the pooled connection before reading the clock so queued operations check current expiry.
+
+func (s *Store) LoadConnection(ctx context.Context, cookie ID, provider string) (Connection, ConnectionRef, error) {
+	dbConn, err := s.db.Conn(ctx)
+	if err != nil {
+		return Connection{}, ConnectionRef{}, storage(err)
+	}
+	defer dbConn.Close()
+	var conn Connection
+	var ref ConnectionRef
+	var row, accessDeadline, refreshDeadline sql.NullInt64
+	var refreshing sql.NullBool
+	err = dbConn.QueryRowContext(ctx, `SELECT s.id, c.id, coalesce(c.revision,0),
+ coalesce(c.access_token,''), coalesce(c.refresh_token,''), coalesce(c.scopes,''),
+ c.expires_at, c.refresh_expires_at, c.refreshing
+ FROM sessions s LEFT JOIN connections c ON c.session_id=s.id AND c.provider=?
+ WHERE s.cookie=? AND s.expires_at>?`, provider, cookie, time.Now().UnixMicro()).Scan(&ref.session, &row, &ref.revision, &conn.AccessToken, &conn.RefreshToken, &conn.Scopes, &accessDeadline, &refreshDeadline, &refreshing)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Connection{}, ref, ErrNoSession
+	}
+	if err != nil {
+		return Connection{}, ref, storage(err)
+	}
+	if !row.Valid {
+		return Connection{}, ref, ErrNoConnection
+	}
+	ref.row, ref.provider = row.Int64, provider
+	if refreshing.Bool {
+		return Connection{}, ref, ErrRefreshing
+	}
+	conn.Provider = provider
+	if accessDeadline.Valid {
+		conn.ExpiresAt = time.UnixMicro(accessDeadline.Int64).UTC()
+	}
+	if refreshDeadline.Valid {
+		conn.RefreshExpiresAt = time.UnixMicro(refreshDeadline.Int64).UTC()
+	}
+	return conn, ref, nil
+}
+
+func (s *Store) ClaimRefresh(ctx context.Context, ref ConnectionRef) (RefreshClaim, error) {
+	dbConn, err := s.db.Conn(ctx)
+	if err != nil {
+		return RefreshClaim{}, storage(err)
+	}
+	defer dbConn.Close()
+	result, err := dbConn.ExecContext(ctx, `UPDATE connections SET refreshing=1,revision=revision+1 WHERE id=? AND session_id=? AND provider=? AND revision=? AND refreshing=0
+ AND EXISTS(SELECT 1 FROM sessions WHERE id=? AND expires_at>?)`, ref.row, ref.session, ref.provider, ref.revision, ref.session, time.Now().UnixMicro())
+	if err := changed(result, err); err != nil {
+		return RefreshClaim{}, err
+	}
+	ref.revision++
+	return RefreshClaim{ref}, nil
+}
+
+func (s *Store) FinishRefresh(ctx context.Context, claim RefreshClaim, connection Connection) error {
+	ref := claim.ref
+	if connection.Provider != ref.provider {
+		return ErrStale
+	}
+	dbConn, err := s.db.Conn(ctx)
+	if err != nil {
+		return storage(err)
+	}
+	defer dbConn.Close()
+	result, err := dbConn.ExecContext(ctx, `UPDATE connections SET access_token=?,refresh_token=?,scopes=?,expires_at=?,refresh_expires_at=?,refreshing=0,revision=revision+1
+ WHERE id=? AND session_id=? AND provider=? AND revision=? AND refreshing=1
+ AND EXISTS(SELECT 1 FROM sessions WHERE id=? AND expires_at>?)`, connection.AccessToken, connection.RefreshToken, connection.Scopes, deadlineValue(connection.ExpiresAt), deadlineValue(connection.RefreshExpiresAt), ref.row, ref.session, ref.provider, ref.revision, ref.session, time.Now().UnixMicro())
+	return changed(result, err)
+}
+
+// DiscardConnection removes only the exact revision loaded or claimed.
+// Reconnects and later refreshes make earlier references stale.
+func (s *Store) DiscardConnection(ctx context.Context, ref ConnectionRef) error {
+	dbConn, err := s.db.Conn(ctx)
+	if err != nil {
+		return storage(err)
+	}
+	defer dbConn.Close()
+	result, err := dbConn.ExecContext(ctx, `DELETE FROM connections WHERE id=? AND session_id=? AND provider=? AND revision=?
+ AND EXISTS(SELECT 1 FROM sessions WHERE id=? AND expires_at>?)`, ref.row, ref.session, ref.provider, ref.revision, ref.session, time.Now().UnixMicro())
+	return changed(result, err)
+}
+
+func (c RefreshClaim) Reference() ConnectionRef { return c.ref }
+
+func (s *Store) Logout(ctx context.Context, cookie ID) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM sessions WHERE cookie=?", cookie)
+	return storage(err)
+}
+
+func (s *Store) CleanupExpired(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at<=?", time.Now().UnixMicro())
+	return storage(err)
+}
+
+// ---------- Helpers ----------
+
+func storage(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrStorage, err)
+}
+
+func changed(result sql.Result, err error) error {
+	if err != nil {
+		return storage(err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return storage(err)
+	}
+	if count == 0 {
+		return ErrStale
+	}
+	return nil
+}
+
+func deadlineValue(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t.UnixMicro()
+}
 
 func generateID() (ID, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to read random bytes, err = %w", err)
+		return "", err
 	}
 	return ID(base64.RawURLEncoding.EncodeToString(b)), nil
 }

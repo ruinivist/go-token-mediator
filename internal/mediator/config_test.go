@@ -179,3 +179,17 @@ func TestLoadConfig_SessionLifetime(t *testing.T) {
 		})
 	}
 }
+
+func TestValidate_DatabasePath(t *testing.T) {
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DatabasePath != "./data/sessions.db" {
+		t.Fatal("missing example database path")
+	}
+	cfg.DatabasePath = ""
+	if err := validate(cfg); err == nil {
+		t.Fatal("missing database_path accepted")
+	}
+}

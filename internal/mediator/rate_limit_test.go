@@ -160,7 +160,7 @@ func TestRateLimit_SharedRoutesAndExemptions(t *testing.T) {
 	cfg.FeOrigin = "https://frontend.example"
 	cfg.RateLimitPerMinute = 1
 	cfg.RateLimitMaxIPs = 2
-	store := session.NewStore(1)
+	store := newTestStore(t, 1, time.Hour)
 	srv := NewServer(cfg, store)
 	handler := srv.routes()
 	first := browserRequest("/oauth/github/token", "{}")
@@ -201,7 +201,7 @@ func TestRateLimit_SharedRoutesAndExemptions(t *testing.T) {
 			t.Fatal("rejection lost browser CORS headers")
 		}
 	}
-	if _, err := store.Create(time.Hour); err != nil {
+	if _, err := store.BeginAuth(t.Context(), "", session.PendingAuth{}); err != nil {
 		t.Fatal("rejected authorization start created a session")
 	}
 	for _, tc := range []struct {
@@ -284,14 +284,12 @@ func TestRateLimit_RejectedOAuthPreservesState(t *testing.T) {
 			p := cfg.Providers["github"]
 			p.TokenUrl = provider.URL + "/token"
 			cfg.Providers["github"] = p
-			store := session.NewStore(1)
-			id, err := store.Create(time.Hour)
-			if err != nil {
+			store := newTestStore(t, 1, time.Hour)
+			original := session.Connection{Provider: "github", AccessToken: "old", RefreshToken: "private-refresh", ExpiresAt: time.Now().Add(-time.Second).UTC().Truncate(time.Microsecond)}
+			browser := authorize(t, store, "", original)
+			id := browser.ID
+			if _, err := store.BeginAuth(t.Context(), id, session.PendingAuth{Provider: "github", State: "state", PKCEVerifier: "verifier"}); err != nil {
 				t.Fatal(err)
-			}
-			original := session.Connection{Provider: "github", AccessToken: "old", RefreshToken: "private-refresh", ExpiresAt: time.Now().Add(-time.Second)}
-			if !store.SaveConnection(id, original) || !store.SetPendingAuth(id, session.PendingAuth{Provider: "github", State: "state", PKCEVerifier: "verifier", CreatedAt: time.Now()}) {
-				t.Fatal("could not prepare session")
 			}
 			srv := NewServer(cfg, store)
 			handler := srv.routes()
@@ -310,7 +308,7 @@ func TestRateLimit_RejectedOAuthPreservesState(t *testing.T) {
 			if rec.Code != 429 || len(calls) != 0 || len(rec.Result().Cookies()) != 0 {
 				t.Fatalf("rejected %s: status = %d, provider calls = %d", operation, rec.Code, len(calls))
 			}
-			if got, ok := store.GetConnection(id, "github"); !ok || got != original {
+			if got, _, err := store.LoadConnection(t.Context(), id, "github"); err != nil || got != original {
 				t.Fatal("rejection changed the provider connection")
 			}
 			// A different IP can finish the same attempt without waiting for the rate window.

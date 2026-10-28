@@ -2,7 +2,9 @@
 
 - Login attempts can overlap. If an older OAuth callback finishes after a newer login starts, there is no extra check to order the attempts, so one may fail.
 - When the session store is full, it rejects new sessions and keeps the existing ones. Logging out frees a slot immediately. Expired sessions free their slots during periodic cleanup.
-- Sessions live in memory in a single process. Restarting the server means users have to reconnect. Saving sessions across restarts or sharing them between instances is outside this project's scope.
+- Sessions persist in one SQLite file owned exclusively by one process. Multiple instances, runtime backend selection, memory-session migration, backup automation, and application-level encryption are outside scope. The first deployment starts empty; subsequent committed sessions survive restarts. Database files and backups contain sensitive credentials.
+- An interrupted refresh or failed final write leaves that provider connection unavailable. Startup deletes unfinished connections, requiring reconnection for that provider. Other providers and the session survive; no attempt is made to recover a possibly consumed refresh token.
+- The refresh buffer is fixed at two minutes. Access tokens issued with lifetimes of two minutes or less are outside the intended scope: requests may repeatedly refresh, and overlapping refreshes may return `401` despite valid authorization.
 - Providers need to support the OAuth flow used here: authorization codes with S256 PKCE, form-encoded token requests with client credentials in the body, and JSON responses containing bearer tokens. Support for other provider behavior should come from a specific need and be verified with that provider.
 - The mediator does not limit how often it sends requests to each provider.
 - OAuth requests have one limit per IP in one-minute windows. A client can use its full allowance just before a reset and again just after it. People sharing an IP share the limit. There are no separate limits per user or route, or controls to spread requests evenly over time.

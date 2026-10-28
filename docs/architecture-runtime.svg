@@ -1,69 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1750" height="1130" viewBox="0 0 1750 1130" role="img" aria-labelledby="title"><title id="title">Token mediator: runtime placement</title>
-<defs>
-<marker id="open" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.5"/></marker>
-<marker id="filled" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12 Z" fill="black"/></marker>
-</defs>
-<rect width="1750" height="1130" fill="white"/>
-<g font-family="DejaVu Sans, sans-serif" fill="black">
-<text x="875.0" y="43" font-size="31" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Token mediator: runtime placement</text>
-<text x="875.0" y="79" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Blue: logic    Green: state    Purple: contracts    Black: UML relationships</text>
-<rect x="50" y="140" width="450" height="720" fill="white" stroke="black" stroke-width="2"/>
-<path d="M50 140 l18 -16 h450 v720 l-18 16 M500 140 l18 -16" fill="none" stroke="black" stroke-width="2"/>
-<text x="275.0" y="172" font-size="23" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">«device» User device</text>
-<rect x="80" y="220" width="390" height="230" fill="white" stroke="black" stroke-width="2"/>
-<text x="275.0" y="255" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Browser</text>
-<path d="M80 272 H470" fill="none" stroke="black" stroke-width="2"/>
-<text x="98" y="302" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Frontend JavaScript</text>
-<text x="98" y="332" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Opaque cookie (HttpOnly)</text>
-<text x="98" y="362" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Access token available to JS</text>
-<path d="M80 372 H470" fill="none" stroke="black" stroke-width="2"/>
-<text x="98" y="402" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Start and token requests</text>
-<text x="98" y="432" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Provider API calls</text>
-<path d="M80 600 H450 L470 620 V714 H80 Z M450 600 V620 H470" fill="white" stroke="black" stroke-width="2"/>
-<text x="96" y="632" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Browser navigates to provider.</text>
-<text x="96" y="662" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Callback returns to Caddy.</text>
-<text x="96" y="692" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">No refresh token in browser.</text>
-<rect x="675" y="140" width="1010" height="520" fill="white" stroke="black" stroke-width="2"/>
-<path d="M675 140 l18 -16 h1010 v520 l-18 16 M1685 140 l18 -16" fill="none" stroke="black" stroke-width="2"/>
-<text x="1180.0" y="172" font-size="23" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">«device» Backend host</text>
-<rect x="710" y="230" width="250" height="122" fill="white" stroke="black" stroke-width="2"/>
-<text x="835.0" y="265" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Caddy</text>
-<path d="M710 282 H960" fill="none" stroke="black" stroke-width="2"/>
-<text x="728" y="312" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">HTTPS endpoint</text>
-<text x="728" y="342" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Client IP header</text>
-<rect x="1040" y="220" width="600" height="375" fill="white" stroke="black" stroke-width="2"/>
-<text x="1340" y="252" font-size="24" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">«executionEnvironment» Go process</text>
-<rect x="1070" y="285" width="540" height="122" fill="white" stroke="black" stroke-width="2"/>
-<text x="1340.0" y="320" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">main + mediator.Server</text>
-<path d="M1070 337 H1610" fill="none" stroke="black" stroke-width="2"/>
-<text x="1088" y="367" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Load config; wire HTTP routes</text>
-<text x="1088" y="397" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">OAuth exchange and refresh</text>
-<rect x="1070" y="450" width="540" height="122" fill="white" stroke="black" stroke-width="2"/>
-<text x="1340.0" y="485" font-size="25" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.Store</text>
-<path d="M1070 502 H1610" fill="none" stroke="black" stroke-width="2"/>
-<text x="1088" y="532" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">In-memory state + RWMutex</text>
-<text x="1088" y="562" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Cleanup worker (10-minute interval)</text>
-<path d="M470 280 H710" fill="none" stroke="black" stroke-width="2"/>
-<text x="600" y="258" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">HTTPS</text>
-<path d="M960 280 H1040" fill="none" stroke="black" stroke-width="2"/>
-<text x="998" y="264" font-size="18" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">HTTP</text>
-<text x="1180" y="630" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Go binds loopback; Caddy is local.</text>
-<rect x="675" y="785" width="1010" height="230" fill="white" stroke="black" stroke-width="2"/>
-<path d="M675 785 l18 -16 h1010 v230 l-18 16 M1685 785 l18 -16" fill="none" stroke="black" stroke-width="2"/>
-<text x="1180.0" y="817" font-size="23" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">«device» External provider</text>
-<rect x="710" y="850" width="480" height="122" fill="white" stroke="black" stroke-width="2"/>
-<text x="950.0" y="885" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Authorization server</text>
-<path d="M710 902 H1190" fill="none" stroke="black" stroke-width="2"/>
-<text x="728" y="932" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Authorization endpoint</text>
-<text x="728" y="962" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Token endpoint</text>
-<rect x="1260" y="850" width="380" height="92" fill="white" stroke="black" stroke-width="2"/>
-<text x="1450.0" y="885" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Resource API</text>
-<path d="M1260 902 H1640" fill="none" stroke="black" stroke-width="2"/>
-<text x="1278" y="932" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Accepts access token</text>
-<path d="M500 730 H580 V900 H710" fill="none" stroke="black" stroke-width="2"/>
-<text x="595" y="830" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">navigate</text>
-<path d="M1340 595 V715 H950 V850" fill="none" stroke="black" stroke-width="2"/>
-<text x="1170" y="695" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Code exchange / refresh</text>
-<path d="M500 805 H550 V1080 H1450 V942" fill="none" stroke="black" stroke-width="2"/>
-<text x="980" y="1060" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Browser calls provider API directly with access token</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc"><title id="title">Runtime: one exclusive SQLite owner</title><desc id="desc">The browser uses local Caddy to reach Go. Go owns a private SQLite file and calls the provider token endpoint; the browser calls resource APIs directly.</desc><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#24364b" stroke-width="1.5"/></marker></defs><rect width="1200" height="700" fill="white"/><g font-family="DejaVu Sans, sans-serif" fill="#15283c"><text x="600" y="42" text-anchor="middle" font-size="26" font-weight="bold">Runtime: one exclusive SQLite owner</text>
+<rect x="30" y="100" width="330" height="144" rx="4" fill="#f6f9fc" stroke="#24364b" stroke-width="1.5"/><path d="M30 143 H360" stroke="#24364b"/>
+<text x="195.0" y="129" font-size="20" text-anchor="middle">Browser</text>
+<text x="46" y="170" font-size="17" text-anchor="start">Frontend JavaScript</text>
+<text x="46" y="198" font-size="17" text-anchor="start">Opaque HttpOnly cookie</text>
+<text x="46" y="226" font-size="17" text-anchor="start">Access tokens for provider APIs</text>
+<rect x="435" y="100" width="330" height="144" rx="4" fill="#f6f9fc" stroke="#24364b" stroke-width="1.5"/><path d="M435 143 H765" stroke="#24364b"/>
+<text x="600.0" y="129" font-size="20" text-anchor="middle">Local Caddy</text>
+<text x="451" y="170" font-size="17" text-anchor="start">HTTPS browser boundary</text>
+<text x="451" y="198" font-size="17" text-anchor="start">One forwarded client IP</text>
+<text x="451" y="226" font-size="17" text-anchor="start">Go listener on loopback</text>
+<rect x="840" y="100" width="330" height="144" rx="4" fill="#f6f9fc" stroke="#24364b" stroke-width="1.5"/><path d="M840 143 H1170" stroke="#24364b"/>
+<text x="1005.0" y="129" font-size="20" text-anchor="middle">OAuth provider</text>
+<text x="856" y="170" font-size="17" text-anchor="start">Authorization endpoint</text>
+<text x="856" y="198" font-size="17" text-anchor="start">Token endpoint</text>
+<text x="856" y="226" font-size="17" text-anchor="start">Resource API</text>
+<rect x="435" y="390" width="330" height="144" rx="4" fill="#f6f9fc" stroke="#24364b" stroke-width="1.5"/><path d="M435 433 H765" stroke="#24364b"/>
+<text x="600.0" y="419" font-size="20" text-anchor="middle">Go process</text>
+<text x="451" y="460" font-size="17" text-anchor="start">main + mediator.Server</text>
+<text x="451" y="488" font-size="17" text-anchor="start">session.Store + cleanup</text>
+<text x="451" y="516" font-size="17" text-anchor="start">Drain handlers before DB close</text>
+<rect x="30" y="390" width="330" height="144" rx="4" fill="#f6f9fc" stroke="#24364b" stroke-width="1.5"/><path d="M30 433 H360" stroke="#24364b"/>
+<text x="195.0" y="419" font-size="20" text-anchor="middle">SQLite file</text>
+<text x="46" y="460" font-size="17" text-anchor="start">database_path, mode 0600</text>
+<text x="46" y="488" font-size="17" text-anchor="start">New directories: mode 0700</text>
+<text x="46" y="516" font-size="17" text-anchor="start">One process; exclusive lock</text>
+<path d="M360 175 L435 175" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="397.5" y="165.0" font-size="16" text-anchor="middle">HTTPS</text>
+<path d="M600 244 L600 390" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600.0" y="307.0" font-size="16" text-anchor="middle">loopback HTTP</text>
+<path d="M435 470 L360 470" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="397.5" y="460.0" font-size="16" text-anchor="middle">SQL transactions</text>
+<path d="M765 470 L1005 244" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="885.0" y="347.0" font-size="16" text-anchor="middle">exchange / refresh</text>
+<path d="M195 100 V80 H1005 V100" fill="none" stroke="#24364b" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="600" y="70" font-size="16" text-anchor="middle">navigate / direct resource API calls</text>
+<text x="600" y="650" font-size="17" text-anchor="middle">Committed sessions survive restarts. Unfinished refresh connections require reconnection.</text>
 </g></svg>
