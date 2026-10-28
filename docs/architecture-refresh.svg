@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1878" viewBox="0 0 1800 1878" role="img" aria-labelledby="title"><title id="title">Refresh: one update shared by concurrent requests</title>
+<defs>
+<marker id="open" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.5"/></marker>
+<marker id="filled" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12 Z" fill="black"/></marker>
+</defs>
+<rect width="1800" height="1878" fill="white"/>
+<g font-family="DejaVu Sans, sans-serif" fill="black">
+<text x="900.0" y="43" font-size="31" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Refresh: one update shared by concurrent requests</text>
+<text x="900.0" y="79" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Blue: logic    Green: state    Purple: contracts    Black: UML relationships</text>
+<rect x="30" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
+<text x="170" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Request A</text>
+<path d="M170 190 V1813" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
+<rect x="510" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
+<text x="650" y="164" font-size="23" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Store</text>
+<path d="M650 190 V1813" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
+<rect x="970" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
+<text x="1110" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Request B</text>
+<path d="M1110 190 V1813" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
+<rect x="1460" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
+<text x="1600" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Provider</text>
+<path d="M1600 190 V1813" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
+<path d="M170 260 H650" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="410.0" y="242" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">UpdateConnection(ctx, id, provider, callback)</text>
+<path d="M650 372 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="765" y="382" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: register flight; capture</text>
+<text x="765" y="407" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">original; unlock</text>
+<path d="M650 484 H170" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="410.0" y="466" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Invoke callback outside store lock</text>
+<path d="M1110 596 H650" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="880.0" y="578" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">UpdateConnection for same session/provider</text>
+<path d="M650 708 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="765" y="718" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: find flight; unlock; B</text>
+<text x="765" y="743" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">waits on done</text>
+<path d="M170 820 H1600" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="885.0" y="802" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Refresh token exchange (near known expiry)</text>
+<path d="M1600 932 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="885.0" y="914" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Access token; optional replacement refresh token</text>
+<path d="M170 1044 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="410.0" y="1026" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Callback returns connection pointer + error</text>
+<path d="M650 1156 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="765" y="1166" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: verify session + expiry +</text>
+<text x="765" y="1191" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">original pointer</text>
+<path d="M650 1268 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="765" y="1278" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Store/delete result; publish</text>
+<text x="765" y="1303" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">error; close done; unlock</text>
+<path d="M650 1380 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="410.0" y="1362" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Read current connection or shared error</text>
+<path d="M650 1492 H1110" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="880.0" y="1474" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Wake; read current connection or shared error</text>
+<path d="M170 1604 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="285" y="1614" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">HTTP response contains access</text>
+<text x="285" y="1639" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">token only</text>
+<path d="M970 1691 H1230 L1250 1711 V1775 H970 Z M1230 1691 V1711 H1250" fill="white" stroke="black" stroke-width="2"/>
+<text x="986" y="1723" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">While waiting: canceling</text>
+<text x="986" y="1753" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">B does not cancel A.</text>
+<text x="900.0" y="1854" font-size="18" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Time runs downward. Solid filled arrow: call; dashed open arrow: reply. Lock labels mark critical sections.</text>
+</g></svg>

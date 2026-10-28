@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1750" height="2000" viewBox="0 0 1750 2000" role="img" aria-labelledby="title"><title id="title">Token mediator: structure and ownership</title>
+<defs>
+<marker id="open" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.5"/></marker>
+<marker id="filled" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12 Z" fill="black"/></marker>
+</defs>
+<rect width="1750" height="2000" fill="white"/>
+<g font-family="DejaVu Sans, sans-serif" fill="black">
+<text x="875.0" y="43" font-size="31" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Token mediator: structure and ownership</text>
+<text x="875.0" y="79" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Blue: logic    Green: state    Purple: contracts    Black: UML relationships</text>
+<rect x="60" y="125" width="800" height="320" fill="white" stroke="black" stroke-width="2"/>
+<text x="460.0" y="160" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">mediator.Server</text>
+<path d="M60 177 H860" fill="none" stroke="black" stroke-width="2"/>
+<text x="78" y="207" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ cfg: *Config</text>
+<text x="78" y="237" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ store: *session.Store</text>
+<text x="78" y="267" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ limiter: *rateLimiter</text>
+<text x="78" y="297" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ httpServer: *http.Server</text>
+<path d="M60 307 H860" fill="none" stroke="black" stroke-width="2"/>
+<text x="78" y="337" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ Run(ctx) error</text>
+<text x="78" y="367" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ routes() http.Handler</text>
+<text x="78" y="397" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ providerOAuthStart / providerOAuthCallback</text>
+<text x="78" y="427" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ providerToken / sessionLogout</text>
+<rect x="950" y="125" width="740" height="242" fill="white" stroke="black" stroke-width="2"/>
+<text x="1320.0" y="160" font-size="25" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">mediator.Config</text>
+<path d="M950 177 H1690" fill="none" stroke="black" stroke-width="2"/>
+<text x="968" y="207" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ Host, Port</text>
+<text x="968" y="237" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ FeOrigin, FeCompletion</text>
+<text x="968" y="267" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ Providers: map[string]ProviderConfig</text>
+<text x="968" y="297" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ SessionLifetime, SessionLimit</text>
+<text x="968" y="327" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ RateLimitPerMinute, RateLimitMaxIPs</text>
+<text x="968" y="357" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ sessionLifetime: time.Duration</text>
+<path d="M860 240 H950" fill="none" stroke="black" stroke-width="2" marker-end="url(#open)"/>
+<text x="905" y="223" font-size="18" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">cfg: 1</text>
+<rect x="60" y="565" width="800" height="380" fill="white" stroke="black" stroke-width="2"/>
+<text x="460.0" y="600" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.Store</text>
+<path d="M60 617 H860" fill="none" stroke="black" stroke-width="2"/>
+<text x="78" y="647" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ mtx: sync.RWMutex</text>
+<text x="78" y="677" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ sessions: map[ID]*session</text>
+<text x="78" y="707" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ limit: int</text>
+<path d="M60 717 H860" fill="none" stroke="black" stroke-width="2"/>
+<text x="78" y="747" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ GetOrCreate(id, lifetime) (ID, bool, error)</text>
+<text x="78" y="777" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ GetConnection(id, provider) (Connection, bool)</text>
+<text x="78" y="807" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ SetPendingAuth(id, pending) bool</text>
+<text x="78" y="837" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ ConsumePendingAuth(id, provider, state)</text>
+<text x="78" y="867" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ CompleteAuth(id, connection) (ID, time.Time, error)</text>
+<text x="78" y="897" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ UpdateConnection(ctx, id, provider, update)</text>
+<text x="78" y="927" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ Delete(id) / StartCleanupWorker(ctx, interval)</text>
+<path d="M460 445 V565" fill="none" stroke="black" stroke-width="2" marker-end="url(#open)"/>
+<text x="480" y="525" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">store: 1 (supplied by main)</text>
+<rect x="950" y="565" width="740" height="290" fill="white" stroke="black" stroke-width="2"/>
+<text x="1320.0" y="600" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">mediator.ProviderConfig</text>
+<path d="M950 617 H1690" fill="none" stroke="black" stroke-width="2"/>
+<text x="968" y="647" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ ClientId, ClientSecret: string</text>
+<text x="968" y="677" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ AuthUrl, TokenUrl, RedirectUrl: string</text>
+<text x="968" y="707" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ Scopes: []string</text>
+<path d="M950 717 H1690" fill="none" stroke="black" stroke-width="2"/>
+<text x="968" y="747" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ buildAuthUrl(state, challenge) string</text>
+<text x="968" y="777" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ fetchAccessToken(code, verifier, ctx)</text>
+<text x="968" y="807" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ refreshAccessToken(ctx, refreshToken)</text>
+<text x="968" y="837" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ requestToken(ctx, form)</text>
+<path d="M1320 367 l-9 15 l9 15 l9 -15 Z" fill="black" stroke="black" stroke-width="2"/>
+<path d="M1320 397 L1320 565" fill="none" stroke="black" stroke-width="2"/>
+<text x="1337" y="387" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1</text>
+<text x="1344" y="550" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1..*</text>
+<text x="1355" y="455" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Providers[name]</text>
+<rect x="60" y="1110" width="800" height="212" fill="white" stroke="black" stroke-width="2"/>
+<text x="460.0" y="1145" font-size="25" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.session</text>
+<path d="M60 1162 H860" fill="none" stroke="black" stroke-width="2"/>
+<text x="78" y="1192" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ id: ID</text>
+<text x="78" y="1222" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ expiresAt: time.Time</text>
+<text x="78" y="1252" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ pendingAuth: *PendingAuth</text>
+<text x="78" y="1282" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ connections: map[string]*Connection</text>
+<text x="78" y="1312" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ updates: map[string]*connectionUpdate</text>
+<path d="M460 945 l-9 15 l9 15 l9 -15 Z" fill="black" stroke="black" stroke-width="2"/>
+<path d="M460 975 L460 1110" fill="none" stroke="black" stroke-width="2"/>
+<text x="477" y="965" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1</text>
+<text x="484" y="1095" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">0..*</text>
+<text x="490" y="1080" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">sessions[id]</text>
+<rect x="950" y="1110" width="740" height="230" fill="white" stroke="black" stroke-width="2"/>
+<text x="1320.0" y="1145" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">mediator.rateLimiter</text>
+<path d="M950 1162 H1690" fill="none" stroke="black" stroke-width="2"/>
+<text x="968" y="1192" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ mu: sync.Mutex</text>
+<text x="968" y="1222" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ counts: map[netip.Addr]int</text>
+<text x="968" y="1252" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ resetAt: time.Time</text>
+<text x="968" y="1282" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ limit, maxIPs: int</text>
+<path d="M950 1292 H1690" fill="none" stroke="black" stroke-width="2"/>
+<text x="968" y="1322" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ allow(ip, now) time.Duration</text>
+<path d="M860 400 H900 V1065 H1320 V1110" fill="none" stroke="black" stroke-width="2" marker-end="url(#open)"/>
+<text x="1060" y="1048" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Server.limiter: 1</text>
+<rect x="60" y="1600" width="500" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="310.0" y="1635" font-size="25" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.PendingAuth</text>
+<path d="M60 1652 H560" fill="none" stroke="black" stroke-width="2"/>
+<text x="78" y="1682" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ Provider: string</text>
+<text x="78" y="1712" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ State: string</text>
+<text x="78" y="1742" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ PKCEVerifier: string</text>
+<text x="78" y="1772" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ CreatedAt: time.Time</text>
+<rect x="625" y="1600" width="500" height="242" fill="white" stroke="black" stroke-width="2"/>
+<text x="875.0" y="1635" font-size="25" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.Connection</text>
+<path d="M625 1652 H1125" fill="none" stroke="black" stroke-width="2"/>
+<text x="643" y="1682" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ Provider: string</text>
+<text x="643" y="1712" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ AccessToken: string</text>
+<text x="643" y="1742" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ RefreshToken: string</text>
+<text x="643" y="1772" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ Scopes: string</text>
+<text x="643" y="1802" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ ExpiresAt: time.Time</text>
+<text x="643" y="1832" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ RefreshExpiresAt: time.Time</text>
+<rect x="1190" y="1600" width="500" height="122" fill="white" stroke="black" stroke-width="2"/>
+<text x="1440.0" y="1635" font-size="25" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.connectionUpdate</text>
+<path d="M1190 1652 H1690" fill="none" stroke="black" stroke-width="2"/>
+<text x="1208" y="1682" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ done: chan struct{}</text>
+<text x="1208" y="1712" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ err: error</text>
+<path d="M180 1322 l-9 15 l9 15 l9 -15 Z" fill="black" stroke="black" stroke-width="2"/>
+<path d="M180 1352 L310 1600" fill="none" stroke="black" stroke-width="2"/>
+<text x="197" y="1342" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1</text>
+<text x="334" y="1585" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">0..1</text>
+<path d="M450 1322 l-9 15 l9 15 l9 -15 Z" fill="black" stroke="black" stroke-width="2"/>
+<path d="M450 1352 L875 1600" fill="none" stroke="black" stroke-width="2"/>
+<text x="467" y="1342" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1</text>
+<text x="899" y="1585" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">0..*</text>
+<path d="M740 1322 l-9 15 l9 15 l9 -15 Z" fill="black" stroke="black" stroke-width="2"/>
+<path d="M740 1352 L1440 1600" fill="none" stroke="black" stroke-width="2"/>
+<text x="757" y="1342" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1</text>
+<text x="1464" y="1585" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">0..*</text>
+<text x="87" y="1510" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">pendingAuth</text>
+<text x="370" y="1550" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">connections[provider]</text>
+<text x="1260" y="1510" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">updates[provider]</text>
+<text x="875" y="1945" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Selected members. + exported; ~ package scope. Diamond: owner; open arrow: association.</text>
+</g></svg>

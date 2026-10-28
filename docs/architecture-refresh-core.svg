@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1150" viewBox="0 0 1500 1150" role="img" aria-labelledby="title"><title id="title">Part 3: coordinate connection updates</title>
+<defs>
+<marker id="open" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.5"/></marker>
+<marker id="filled" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12 Z" fill="black"/></marker>
+</defs>
+<rect width="1500" height="1150" fill="white"/>
+<g font-family="DejaVu Sans, sans-serif" fill="black">
+<text x="750.0" y="43" font-size="31" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Part 3: coordinate connection updates</text>
+<text x="750.0" y="79" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Blue: logic    Green: state    Purple: contracts    Black: UML relationships</text>
+<rect x="50" y="130" width="650" height="110" fill="white" stroke="black" stroke-width="2"/>
+<text x="375.0" y="165" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">mediator.Server</text>
+<path d="M50 182 H700" fill="none" stroke="black" stroke-width="2"/>
+<path d="M50 192 H700" fill="none" stroke="black" stroke-width="2"/>
+<text x="68" y="222" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ providerToken(w, r)</text>
+<rect x="850" y="130" width="600" height="140" fill="white" stroke="black" stroke-width="2"/>
+<text x="1150.0" y="165" font-size="25" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.Store</text>
+<path d="M850 182 H1450" fill="none" stroke="black" stroke-width="2"/>
+<text x="868" y="212" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ mtx: sync.RWMutex</text>
+<path d="M850 222 H1450" fill="none" stroke="black" stroke-width="2"/>
+<text x="868" y="252" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">+ UpdateConnection(ctx, id, provider, update)</text>
+<path d="M700 205 H850" fill="none" stroke="black" stroke-width="2" marker-end="url(#open)"/>
+<text x="775" y="187" font-size="18" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">store: 1</text>
+<rect x="50" y="480" width="650" height="122" fill="white" stroke="black" stroke-width="2"/>
+<text x="375.0" y="515" font-size="25" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.session</text>
+<path d="M50 532 H700" fill="none" stroke="black" stroke-width="2"/>
+<text x="68" y="562" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ connections: map[string]*Connection</text>
+<text x="68" y="592" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ updates: map[string]*connectionUpdate</text>
+<rect x="850" y="480" width="600" height="122" fill="white" stroke="black" stroke-width="2"/>
+<text x="1150.0" y="515" font-size="25" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">session.connectionUpdate</text>
+<path d="M850 532 H1450" fill="none" stroke="black" stroke-width="2"/>
+<text x="868" y="562" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ done: chan struct{}</text>
+<text x="868" y="592" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">~ err: error</text>
+<path d="M1150 270 l-9 15 l9 15 l9 -15 Z" fill="black" stroke="black" stroke-width="2"/>
+<path d="M1150 300 L375 480" fill="none" stroke="black" stroke-width="2"/>
+<text x="1167" y="290" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1</text>
+<text x="310" y="465" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">0..*</text>
+<text x="720" y="350" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">sessions[id]</text>
+<path d="M700 565 H850" fill="none" stroke="black" stroke-width="2"/>
+<path d="M700 565 l15 -9 l15 9 l-15 9 Z" fill="black"/>
+<text x="735" y="545" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">1</text>
+<text x="795" y="545" font-size="18" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">0..*</text>
+<path d="M70 790 H1410 L1430 810 V934 H70 Z M1410 790 V810 H1430" fill="white" stroke="black" stroke-width="2"/>
+<text x="86" y="822" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Under lock: register one flight per provider, or join the existing flight.</text>
+<text x="86" y="852" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Outside lock: callback receives a copy; decides cached token, refresh, retention, or deletion.</text>
+<text x="86" y="882" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Under lock: check session membership, expiry, original connection identity; publish and close done.</text>
+<text x="86" y="912" font-size="20" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">nil connection means deletion, even on error. A waiter can cancel only its own wait.</text>
+</g></svg>

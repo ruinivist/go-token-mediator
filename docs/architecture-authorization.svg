@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2438" viewBox="0 0 1800 2438" role="img" aria-labelledby="title"><title id="title">Authorization: start, consume, exchange, rotate</title>
+<defs>
+<marker id="open" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.5"/></marker>
+<marker id="filled" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M2 2 L12 7 L2 12 Z" fill="black"/></marker>
+</defs>
+<rect width="1800" height="2438" fill="white"/>
+<g font-family="DejaVu Sans, sans-serif" fill="black">
+<text x="900.0" y="43" font-size="31" fill="black" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Authorization: start, consume, exchange, rotate</text>
+<text x="900.0" y="79" font-size="20" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Blue: logic    Green: state    Purple: contracts    Black: UML relationships</text>
+<rect x="30" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
+<text x="170" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Browser</text>
+<path d="M170 190 V2373" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
+<rect x="510" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
+<text x="650" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Server</text>
+<path d="M650 190 V2373" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
+<rect x="970" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
+<text x="1110" y="164" font-size="23" fill="#18713a" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Store</text>
+<path d="M1110 190 V2373" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
+<rect x="1460" y="125" width="280" height="65" fill="white" stroke="black" stroke-width="2"/>
+<text x="1600" y="164" font-size="23" fill="#1856a6" text-anchor="middle" font-weight="bold" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Provider</text>
+<path d="M1600 190 V2373" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7"/>
+<path d="M170 260 H650" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="410.0" y="242" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">POST /oauth/{provider}/start; headers + {}</text>
+<path d="M650 372 H1110" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="880.0" y="354" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">GetOrCreate; SetPendingAuth</text>
+<path d="M1110 484 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="1225" y="494" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: save state + verifier;</text>
+<text x="1225" y="519" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">unlock</text>
+<path d="M1110 596 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="880.0" y="578" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Session ID; pending attempt saved</text>
+<path d="M650 708 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="410.0" y="690" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">authorization_url; cookie if new session</text>
+<path d="M170 820 H1600" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="885.0" y="802" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Navigate: state + S256 challenge</text>
+<path d="M1600 932 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="885.0" y="914" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Approval; redirect to callback with code + state</text>
+<path d="M170 1044 H650" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="410.0" y="1026" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">GET callback; code + state + cookie</text>
+<path d="M650 1156 H1110" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="880.0" y="1138" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">ConsumePendingAuth(id, provider, state)</text>
+<path d="M1110 1268 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="1225" y="1278" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: validate + remove attempt;</text>
+<text x="1225" y="1303" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">unlock</text>
+<path d="M1110 1380 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="880.0" y="1362" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Detached PendingAuth; verifier</text>
+<path d="M650 1492 H1600" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="1125.0" y="1474" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">POST token endpoint: code, verifier, client credentials; no store lock</text>
+<path d="M1600 1604 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="1125.0" y="1586" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Validated token response</text>
+<path d="M650 1716 H1110" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="880.0" y="1698" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">CompleteAuth(id, connection)</text>
+<path d="M1110 1828 h95 v40 h-95" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="1225" y="1838" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Lock: save + rotate ID; keep</text>
+<text x="1225" y="1863" font-size="19" fill="black" text-anchor="start" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">deadline; unlock</text>
+<path d="M1110 1940 H650" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="880.0" y="1922" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">New ID; original session deadline</text>
+<path d="M650 2052 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="410.0" y="2034" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">303 frontend completion; rotated cookie</text>
+<path d="M170 2164 H650" fill="none" stroke="black" stroke-width="2" marker-end="url(#filled)"/>
+<text x="410.0" y="2146" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">POST /oauth/{provider}/token</text>
+<path d="M650 2276 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#open)"/>
+<text x="410.0" y="2258" font-size="19" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Access token for browser API calls</text>
+<text x="900.0" y="2414" font-size="18" fill="black" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="4" stroke-linejoin="round">Time runs downward. Solid filled arrow: call; dashed open arrow: reply. Lock labels mark critical sections.</text>
+</g></svg>

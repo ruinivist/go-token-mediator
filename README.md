@@ -1,6 +1,9 @@
 # go-token-mediator
 
 Lightest token mediator
+
+Read the [architecture notes](docs/architecture.md) for setup, UML, and design guidance, or the [breakdown](docs/architecture-breakdown.md) for incremental recall.
+
 Some sites like Github do not support a client only OAuth path and force you to put a client credential
 on the frontend, which is fine as NOT having to do that is not any more secure, browser is inherently less
 secure than a mediating backned ( or a bff as the best case ).
