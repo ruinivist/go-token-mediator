@@ -26,7 +26,7 @@ func TestOAuthFlow(t *testing.T) {
 	provider := ProviderConfig{
 		ClientId:     "test-client",
 		ClientSecret: "test-secret",
-		AuthUrl:      "https://provider.example/authorize",
+		AuthUrl:      "https://provider.example/authorize?tenant=group%2Fname&tag=one%2Btwo&client_id=old&client_id=older&state=old&scope=old&response_type=token&code_challenge=old&code_challenge_method=plain&redirect_uri=https%3A%2F%2Fevil.example%2F",
 		TokenUrl:     providerServer.URL + "/token",
 		RedirectUrl:  "https://mediator.example/oauth/mock/callback",
 		Scopes:       []string{"read:user", "user:email"},
@@ -66,6 +66,11 @@ func TestOAuthFlow(t *testing.T) {
 		t.Fatalf("unexpected authorization URL: %s", authURL)
 	}
 	query := authURL.Query()
+	for _, key := range []string{"client_id", "redirect_uri", "response_type", "state", "code_challenge", "code_challenge_method", "scope"} {
+		if len(query[key]) != 1 {
+			t.Errorf("authorization %s has %d values, want one", key, len(query[key]))
+		}
+	}
 	for key, want := range map[string]string{
 		"client_id":             provider.ClientId,
 		"redirect_uri":          provider.RedirectUrl,
@@ -76,6 +81,9 @@ func TestOAuthFlow(t *testing.T) {
 		if got := query.Get(key); got != want {
 			t.Errorf("authorization %s = %q, want %q", key, got, want)
 		}
+	}
+	if query.Get("tenant") != "group/name" || query.Get("tag") != "one+two" {
+		t.Errorf("unrelated authorization query values were not preserved: %v", query)
 	}
 	state, challenge := query.Get("state"), query.Get("code_challenge")
 	if state == "" || challenge == "" {
@@ -223,6 +231,34 @@ func TestOAuthFlow(t *testing.T) {
 	case <-tokenRequests:
 		t.Fatal("replayed callback contacted the token endpoint")
 	default:
+	}
+}
+
+func TestOAuthStart_InvalidAuthorizationURLDoesNotReplacePendingAuth(t *testing.T) {
+	store := newTestStore(t, 10, time.Hour)
+	browser, err := store.BeginAuth(t.Context(), "", session.PendingAuth{
+		Provider: "mock", State: "existing-state", PKCEVerifier: "existing-verifier",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &Config{
+		RateLimitPerMinute: 60,
+		RateLimitMaxIPs:    100,
+		FeOrigin:           "https://frontend.example",
+		Providers: map[string]ProviderConfig{
+			"mock": {AuthUrl: "https://provider.example/authorize?invalid=%zz"},
+		},
+	}
+	req := browserRequest("/oauth/mock/start", "{}")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: string(browser.ID)})
+	rec := httptest.NewRecorder()
+	NewServer(cfg, store).routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "provider.example") || len(rec.Result().Cookies()) != 0 {
+		t.Fatalf("invalid authorization URL response: %d %s", rec.Code, rec.Body.String())
+	}
+	if _, _, err := store.ConsumeAuth(t.Context(), browser.ID, "mock", "existing-state"); err != nil {
+		t.Fatalf("invalid URL replaced pending authorization: %v", err)
 	}
 }
 

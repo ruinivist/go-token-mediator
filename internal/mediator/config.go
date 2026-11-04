@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -100,6 +102,20 @@ func validate(c *Config) error {
 		}
 		if p.AuthUrl == "" || p.TokenUrl == "" || p.RedirectUrl == "" {
 			return fmt.Errorf("provider %q missing URLs", name)
+		}
+		tokenURL, err := url.Parse(p.TokenUrl)
+		if err != nil || !tokenURL.IsAbs() || tokenURL.Opaque != "" || tokenURL.Host == "" || tokenURL.Hostname() == "" || tokenURL.User != nil || tokenURL.Fragment != "" || strings.Contains(p.TokenUrl, "#") {
+			return fmt.Errorf("provider %q has invalid 'token_url'", name)
+		}
+		if tokenURL.Scheme != "https" {
+			if tokenURL.Scheme != "http" {
+				return fmt.Errorf("provider %q 'token_url' must use HTTPS or loopback HTTP", name)
+			}
+			host := tokenURL.Hostname()
+			addr, err := netip.ParseAddr(host)
+			if !strings.EqualFold(host, "localhost") && (err != nil || addr.Zone() != "" || !addr.Unmap().IsLoopback()) {
+				return fmt.Errorf("provider %q 'token_url' must use HTTPS or loopback HTTP", name)
+			}
 		}
 	}
 	return nil

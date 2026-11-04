@@ -287,8 +287,14 @@ func TestProviderToken_RefreshFailures(t *testing.T) {
 		{"bad refresh token", 400, `{"error":"bad_refresh_token","error_description":"private-secret"}`, 401, true},
 		{"bad refresh token with 200", 200, `{"error":"bad_refresh_token"}`, 401, true},
 		{"other oauth error", 400, `{"error":"invalid_client"}`, 502, false},
+		{"other oauth error with 401", 401, `{"error":"invalid_client"}`, 502, false},
 		{"oauth error with 200", 200, `{"error":"temporarily_unavailable"}`, 502, false},
-		{"upstream failure", 500, `private-secret`, 502, false},
+		{"upstream failure", 500, `private-secret`, 502, true},
+		{"malformed 500", 500, `{`, 502, true},
+		{"malformed 502", 502, `{`, 502, true},
+		{"oauth error with 5xx", 503, `{"error":"temporarily_unavailable"}`, 502, true},
+		{"malformed 4xx", 400, `{`, 502, true},
+		{"4xx without oauth error", 400, `{"message":"rejected"}`, 502, true},
 		{"malformed success", 200, `{`, 502, true},
 		{"null", 200, `null`, 502, true},
 		{"array", 200, `[]`, 502, true},
@@ -309,7 +315,7 @@ func TestProviderToken_RefreshFailures(t *testing.T) {
 		{"oversized", 200, `{"access_token":"new"}` + strings.Repeat(" ", 64<<10), 502, true},
 		{"transport", 0, "", 502, true},
 		{"timeout", -1, "", 504, true},
-		{"redirect", 307, "", 502, false},
+		{"redirect", 307, "", 502, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls atomic.Int32
@@ -360,6 +366,9 @@ func TestProviderToken_RefreshFailures(t *testing.T) {
 			if calls.Load() > 1 {
 				t.Fatal("retried refresh")
 			}
+			if after, err := store.BeginAuth(t.Context(), id, session.PendingAuth{}); err != nil || !after.ExpiresAt.Equal(browser.ExpiresAt) {
+				t.Fatal("refresh failure removed the session or changed its deadline")
+			}
 			conn, _, loadErr := store.LoadConnection(t.Context(), id, "mock")
 			if (loadErr == nil) == tc.remove || (loadErr != nil && !errors.Is(loadErr, session.ErrNoConnection)) {
 				t.Fatalf("connection error = %v, remove = %v", loadErr, tc.remove)
@@ -373,7 +382,7 @@ func TestProviderToken_RefreshFailures(t *testing.T) {
 			if tc.remove {
 				again := httptest.NewRecorder()
 				handler.ServeHTTP(again, browserTokenRequest(id))
-				if again.Code != 401 || calls.Load() > 1 {
+				if again.Code != 401 || calls.Load() != 1 {
 					t.Fatal("retried unusable refresh token")
 				}
 			}

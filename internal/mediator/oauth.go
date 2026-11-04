@@ -37,8 +37,15 @@ type tokenResponse struct {
 // ==== funcs ====
 
 // OAUthUrl the client will redirect the user to
-func (p *ProviderConfig) buildAuthUrl(state, challenge string) string {
-	params := url.Values{}
+func (p *ProviderConfig) buildAuthUrl(state, challenge string) (string, error) {
+	authURL, err := url.Parse(p.AuthUrl)
+	if err != nil {
+		return "", err
+	}
+	params, err := url.ParseQuery(authURL.RawQuery)
+	if err != nil {
+		return "", err
+	}
 	// now the 7 fields they need
 	params.Set("client_id", p.ClientId)
 	params.Set("redirect_uri", p.RedirectUrl)
@@ -49,9 +56,12 @@ func (p *ProviderConfig) buildAuthUrl(state, challenge string) string {
 
 	if len(p.Scopes) > 0 {
 		params.Set("scope", strings.Join(p.Scopes, " "))
+	} else {
+		params.Del("scope")
 	}
 
-	return p.AuthUrl + "?" + params.Encode()
+	authURL.RawQuery = params.Encode()
+	return authURL.String(), nil
 }
 
 // POSTs to token url with code and it's verifier to get access tokens
@@ -123,16 +133,22 @@ func (p *ProviderConfig) requestToken(ctx context.Context, form url.Values) (*to
 	const maxResponseBytes = 64 << 10
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
-		return nil, &tokenError{cause: err, uncertain: resp.StatusCode == http.StatusOK}
+		return nil, &tokenError{cause: err, uncertain: true}
 	}
 	// decode response to struct
 	var result *tokenResponse
 	if len(body) > maxResponseBytes || json.Unmarshal(body, &result) != nil || result == nil {
-		return nil, &tokenError{uncertain: resp.StatusCode == http.StatusOK}
+		return nil, &tokenError{uncertain: true}
 	}
-	if result.ErrorCode != "" || resp.StatusCode != http.StatusOK {
+	if result.ErrorCode != "" {
 		// https://www.rfc-editor.org/rfc/rfc6749.html#section-5.1
-		return nil, &tokenError{code: result.ErrorCode}
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized {
+			return nil, &tokenError{code: result.ErrorCode}
+		}
+		return nil, &tokenError{uncertain: true}
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, &tokenError{uncertain: true}
 	}
 	if result.AccessToken == "" ||
 		(result.TokenType != nil && !strings.EqualFold(*result.TokenType, "Bearer")) ||

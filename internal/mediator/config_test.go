@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -112,6 +113,46 @@ func TestValidate_LoopbackHost(t *testing.T) {
 			cfg.Host = tc.host
 			if err := validate(cfg); (err == nil) != tc.valid {
 				t.Fatalf("host %q: valid = %v, error = %v", tc.host, tc.valid, err)
+			}
+		})
+	}
+}
+
+func TestValidate_TokenURL(t *testing.T) {
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name  string
+		url   string
+		valid bool
+	}{
+		{"remote https", "https://provider.example/token", true},
+		{"http loopback ipv4", "http://127.0.0.1:8081/token", true},
+		{"http loopback ipv6", "http://[::1]:8081/token", true},
+		{"http mapped loopback", "http://[::ffff:127.0.0.1]:8081/token", true},
+		{"http localhost", "http://LOCALHOST:8081/token", true},
+		{"http lookalike", "http://localhost.evil/token", false},
+		{"http remote ipv4", "http://192.0.2.1/token", false},
+		{"http remote ipv6", "http://[2001:db8::1]/token", false},
+		{"relative", "/token", false},
+		{"unsupported scheme", "ftp://provider.example/token", false},
+		{"missing host", "https:///token", false},
+		{"malformed", "https://provider.example/%zz", false},
+		{"userinfo", "https://user:private-secret@provider.example/token", false},
+		{"fragment", "https://provider.example/token#fragment", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := cfg.Providers["github"]
+			provider.TokenUrl = tc.url
+			cfg.Providers["github"] = provider
+			err := validate(cfg)
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid = %v, error = %v", tc.valid, err)
+			}
+			if err != nil && (!strings.Contains(err.Error(), "github") || !strings.Contains(err.Error(), "token_url") || strings.Contains(err.Error(), tc.url) || strings.Contains(err.Error(), "private-secret")) {
+				t.Fatalf("unsafe or unhelpful validation error: %v", err)
 			}
 		})
 	}

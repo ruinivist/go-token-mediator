@@ -195,6 +195,11 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to generate pkce", http.StatusInternalServerError)
 		return
 	}
+	authorizationURL, err := p.buildAuthUrl(state, challenge)
+	if err != nil {
+		writeJSONError(w, "provider_configuration_error", http.StatusInternalServerError)
+		return
+	}
 
 	browser, err := s.store.BeginAuth(r.Context(), cookieID, session.PendingAuth{
 		Provider: providerName, State: state, PKCEVerifier: verifier,
@@ -211,7 +216,7 @@ func (s *Server) providerOAuthStart(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"authorization_url": p.buildAuthUrl(state, challenge),
+		"authorization_url": authorizationURL,
 	})
 }
 

@@ -29,7 +29,7 @@ make run CONFIG_PATH=/path/to/config.json
 | `frontend_completion_url` | Redirect destination after successful authorization. |
 | `providers` | Named credentials, authorization/token URLs, callback URLs, and requested scopes. |
 
-Configuration has no defaults. Loading rejects unknown fields and validates required values, positive limits, and a loopback host. It does not comprehensively validate URL syntax or provider compatibility.
+Configuration has no defaults. Loading rejects unknown fields and validates required values, positive limits, and a loopback host. Token endpoints must be absolute HTTPS URLs; HTTP is allowed only for a literal loopback IP or exact `localhost`. Authorization URL syntax is checked when a browser starts authorization; other URL syntax and provider compatibility are not comprehensively validated.
 
 Startup creates new database directories with mode `0700` and sets the database to `0600`. One pooled connection uses enabled foreign keys, exclusive locking, rollback journaling (`DELETE`), `synchronous=EXTRA`, and a five-second busy timeout. These settings and exclusive ownership apply to every physical connection. The store acquires ownership before transactionally checking or initializing schema version 1 and deleting unfinished refresh connections. Unsupported versions, unrecognized schemas, another owner, or a storage failure prevent startup. [SQLite's exclusive locking mode](https://www.sqlite.org/pragma.html#pragma_locking_mode) also prevents external database inspection while the application owns the file.
 
@@ -111,9 +111,9 @@ Successful refresh saves the new access token. Omitted refresh token and scope p
 | Provider outcome | Persistence and response |
 | --- | --- |
 | Success | `FinishRefresh` saves credentials and clears the marker. |
-| `invalid_grant` or `bad_refresh_token` | Discard; return `401 reauthorization_required`. |
-| Uncertain consumption, such as transport failure or malformed success | Discard; return sanitized `502 provider_error` or `504 provider_timeout`. |
-| Known non-consuming rejection | Save original credentials to clear the marker; return the provider error. |
+| Explicit `invalid_grant` or `bad_refresh_token` on a known rejection | Discard; return `401 reauthorization_required`. |
+| Uncertain consumption, such as transport failure, redirects, malformed responses, or any `5xx` response (including OAuth error JSON) | Discard; return sanitized `502 provider_error` or `504 provider_timeout`. |
+| Known non-consuming rejection, with an explicit OAuth error on `400`/`401` or the supported `200` compatibility response | Save original credentials to clear the marker; return the provider error. `invalid_grant` and `bad_refresh_token` still require authorization. |
 | Final persistence failure | Return `503`; the committed marker keeps the old credentials unavailable. |
 
 Provider outcomes persist with a separate five-second context, even after browser cancellation. Startup removes connections with unfinished markers while retaining their sessions and other providers. An affected provider requires reconnection. Later requests cannot reuse a marked refresh token.
