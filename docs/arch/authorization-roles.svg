@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2200 1000" role="img" aria-labelledby="roles-title roles-desc">
+  <title id="roles-title">Authorization roles and trust boundaries</title>
+  <desc id="roles-desc">A UML component and dependency view. The external browser frontend uses mediator routes, navigates to the authorization server, and calls the resource server directly. The backend mediator is the confidential OAuth client. The resource owner is a human actor, and the provider's authorization and resource server roles may be implemented by the same service.</desc>
+  <defs>
+    <marker id="roles-dependency" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+  </defs>
+  <rect width="2200" height="1000" fill="white" />
+  <g font-family="DejaVu Sans, sans-serif" fill="black">
+    <text x="1100" y="48" text-anchor="middle" font-size="31" font-weight="bold">Authorization: roles and trust boundaries</text>
+    <text x="1100" y="82" text-anchor="middle" font-size="18">Dashed open arrow: uses dependency · no timing or call order · solid line: human interaction</text>
+
+    <rect x="1570" y="108" width="620" height="58" fill="white" stroke="black" stroke-width="1.5" />
+    <path d="M2160 108 L2190 138 H2160 Z" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="1590" y="133" font-size="17">Authorization server and resource server are logical roles;</text>
+    <text x="1590" y="155" font-size="17">the same provider may implement both.</text>
+
+    <rect x="40" y="250" width="735" height="500" fill="none" stroke="#555" stroke-width="1.7" stroke-dasharray="9 7" />
+    <rect x="895" y="250" width="565" height="500" fill="none" stroke="#555" stroke-width="1.7" stroke-dasharray="9 7" />
+    <rect x="1625" y="190" width="565" height="650" fill="none" stroke="#555" stroke-width="1.7" stroke-dasharray="9 7" />
+    <rect x="53" y="234" width="248" height="30" fill="white" />
+    <text x="62" y="256" font-size="18" font-weight="bold">USER SIDE · external</text>
+    <rect x="908" y="234" width="222" height="30" fill="white" />
+    <text x="917" y="256" font-size="18" font-weight="bold">MEDIATOR · backend</text>
+    <rect x="1638" y="174" width="320" height="30" fill="white" />
+    <text x="1647" y="196" font-size="18" font-weight="bold">PROVIDER · external service</text>
+
+    <!-- Human actor and its ordinary association to the external browser. -->
+    <circle cx="165" cy="382" r="22" fill="white" stroke="black" stroke-width="2" />
+    <path d="M165 404 V466 M128 425 H202 M165 466 L132 508 M165 466 L198 508 M202 425 H300" fill="none" stroke="black" stroke-width="2" />
+    <text x="165" y="542" text-anchor="middle" font-size="20" font-weight="bold">Resource owner</text>
+    <text x="165" y="570" text-anchor="middle" font-size="17">human · grants consent</text>
+
+    <!-- Dashed dependencies show use, not message timing or response arrows. -->
+    <path d="M515 320 V220 H1920 V260" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#roles-dependency)" />
+    <text x="1217" y="210" text-anchor="middle" font-size="17">authorization navigation</text>
+
+    <path d="M730 490 H940" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#roles-dependency)" />
+    <text x="835" y="443" text-anchor="middle" font-size="16">start · callback ·</text>
+    <text x="835" y="465" text-anchor="middle" font-size="16">token routes</text>
+
+    <path d="M1410 400 H1700" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#roles-dependency)" />
+    <text x="1555" y="365" text-anchor="middle" font-size="16">code exchange · optional refresh</text>
+
+    <path d="M515 650 V820 H1600 V665 H1700" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#roles-dependency)" />
+    <text x="1055" y="808" text-anchor="middle" font-size="17">Bearer API access · browser calls provider directly</text>
+
+    <rect x="300" y="320" width="430" height="330" fill="white" stroke="black" stroke-width="2" />
+    <path d="M300 378 H730" fill="none" stroke="black" stroke-width="2" />
+    <text x="515" y="345" text-anchor="middle" font-size="17">«external component»</text>
+    <text x="515" y="369" text-anchor="middle" font-size="22" font-weight="bold">Browser + frontend</text>
+    <text x="325" y="420" font-size="18">Frontend app: not supplied</text>
+    <text x="325" y="462" font-size="18">Opaque session cookie on mediator routes</text>
+    <text x="325" y="504" font-size="18">Receives access-token JSON</text>
+    <text x="325" y="546" font-size="18">Calls provider APIs directly</text>
+    <text x="325" y="596" font-size="17">No mediator resource proxy.</text>
+
+    <rect x="940" y="320" width="470" height="330" fill="white" stroke="black" stroke-width="2" />
+    <path d="M940 378 H1410" fill="none" stroke="black" stroke-width="2" />
+    <text x="1175" y="345" text-anchor="middle" font-size="17">«component» · «confidential OAuth client»</text>
+    <text x="1175" y="369" text-anchor="middle" font-size="23" font-weight="bold" fill="#1856a6">mediator.Server</text>
+    <text x="965" y="420" font-size="18">Start, callback, and token routes</text>
+    <text x="965" y="462" font-size="18">Client secret + PKCE verifier</text>
+    <text x="965" y="486" font-size="18">and refresh token stay backend-only</text>
+    <text x="965" y="558" font-size="17">Refresh runs on later token requests.</text>
+    <text x="965" y="600" font-size="17">Returns access-token JSON through its route.</text>
+
+    <rect x="1700" y="260" width="440" height="210" fill="white" stroke="black" stroke-width="2" />
+    <path d="M1700 314 H2140" fill="none" stroke="black" stroke-width="2" />
+    <text x="1920" y="285" text-anchor="middle" font-size="16">«OAuth role»</text>
+    <text x="1920" y="344" text-anchor="middle" font-size="22" font-weight="bold" fill="#7435a0">Authorization server</text>
+    <text x="1920" y="382" text-anchor="middle" font-size="17">authorization + token endpoints</text>
+    <text x="1920" y="414" text-anchor="middle" font-size="17">consent, code, token exchange</text>
+
+    <rect x="1700" y="560" width="440" height="210" fill="white" stroke="black" stroke-width="2" />
+    <path d="M1700 614 H2140" fill="none" stroke="black" stroke-width="2" />
+    <text x="1920" y="585" text-anchor="middle" font-size="16">«OAuth role»</text>
+    <text x="1920" y="644" text-anchor="middle" font-size="22" font-weight="bold" fill="#7435a0">Resource server</text>
+    <text x="1920" y="682" text-anchor="middle" font-size="17">provider APIs</text>
+    <text x="1920" y="714" text-anchor="middle" font-size="17">accessed directly by browser</text>
+
+    <text x="1100" y="900" text-anchor="middle" font-size="17">Client secret, PKCE verifier, and refresh token stay backend-only; the browser gets a protected session cookie and access-token JSON.</text>
+  </g>
+</svg>

@@ -43,9 +43,9 @@
 
     <path d="M520 385 H175" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
     <rect x="168" y="356" width="358" height="24" fill="white" />
-    <text x="347" y="374" text-anchor="middle" font-size="18">authorization URL + protected cookie</text>
+    <text x="347" y="374" text-anchor="middle" font-size="18">authorization_url JSON + session cookie</text>
 
-    <path d="M175 450 H1320" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-sync)" />
+    <path d="M175 450 H1320" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-async)" />
     <rect x="500" y="421" width="490" height="24" fill="white" />
     <text x="747" y="439" text-anchor="middle" font-size="18">Navigate to consent with state + S256 challenge</text>
 
@@ -64,7 +64,7 @@
 
     <path d="M910 690 H520" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
     <rect x="510" y="661" width="410" height="24" fill="white" />
-    <text x="715" y="679" text-anchor="middle" font-size="18">Reject OR verifier + consumed AuthHandle</text>
+    <text x="715" y="679" text-anchor="middle" font-size="18">error OR (verifier + AuthHandle)</text>
 
     <rect x="65" y="730" width="1370" height="490" fill="none" stroke="black" stroke-width="2" />
     <path d="M65 770 H1435" fill="none" stroke="black" stroke-width="2" />
@@ -95,7 +95,7 @@
 
     <path d="M910 1080 H520" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
     <rect x="495" y="1051" width="440" height="24" fill="white" />
-    <text x="715" y="1069" text-anchor="middle" font-size="18">Atomic save + rotated cookie; original deadline</text>
+    <text x="715" y="1069" text-anchor="middle" font-size="18">Commit connection + rotated cookie; keep deadline</text>
 
     <path d="M520 1150 H175" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
     <rect x="168" y="1121" width="358" height="24" fill="white" />

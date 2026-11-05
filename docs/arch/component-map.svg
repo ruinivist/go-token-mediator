@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-labelledby="component-title component-desc">
   <title id="component-title">Token mediator component map</title>
-  <desc id="component-desc">A logical component view of one Go monolith. Main wires and supervises mediator.Server and session.Store. The mediator uses the store and provider OAuth token endpoint; the store persists to a SQLite file. The external browser calls provider resource APIs directly with access tokens.</desc>
+  <desc id="component-desc">A logical component view of one Go process. Main wires and supervises mediator.Server and session.Store. The mediator uses the store and provider OAuth token endpoint; the store persists to a SQLite file. The external browser calls provider resource APIs directly with access tokens.</desc>
   <defs>
     <marker id="component-dependency" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
       <path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.7" />
@@ -16,7 +16,7 @@
 
     <rect x="340" y="190" width="880" height="710" fill="white" stroke="black" stroke-width="2" />
     <rect x="430" y="174" width="700" height="34" fill="white" />
-    <text x="780" y="198" text-anchor="middle" font-size="20" font-weight="bold">One Go monolith · internal packages, not microservices</text>
+    <text x="780" y="198" text-anchor="middle" font-size="20" font-weight="bold">One Go process · main, mediator, and session packages</text>
 
     <rect x="45" y="320" width="255" height="220" fill="white" stroke="black" stroke-width="2" />
     <path d="M45 376 H300" fill="none" stroke="black" stroke-width="2" />

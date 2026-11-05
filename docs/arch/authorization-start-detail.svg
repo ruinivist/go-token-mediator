@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" role="img" aria-labelledby="start-title start-desc">
+  <title id="start-title">Authorization start and consent sequence</title>
+  <desc id="start-desc">The browser posts to the protected start route. The mediator generates state and PKCE material, builds the authorization URL before changing storage, then atomically reuses or creates a session and replaces its pending attempt. It returns the URL and cookie as JSON; the browser navigates to provider consent.</desc>
+  <defs>
+    <marker id="start-sync" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13 Z" fill="black" />
+    </marker>
+    <marker id="start-async" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+    <marker id="start-reply" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+  </defs>
+  <rect width="1600" height="1180" fill="white" />
+  <g font-family="DejaVu Sans, sans-serif" fill="black">
+    <text x="800" y="46" text-anchor="middle" font-size="31" font-weight="bold">Authorization start: build URL, then persist attempt</text>
+    <text x="800" y="80" text-anchor="middle" font-size="18">Sequence · filled arrow: synchronous call · open solid arrow: asynchronous navigation · dashed open arrow: reply · time runs downward</text>
+
+    <path d="M170 282 V900 M560 282 V900 M970 282 V900 M1380 282 V900" fill="none" stroke="#555" stroke-width="1.5" stroke-dasharray="8 7" />
+
+    <rect x="120" y="110" width="1360" height="82" fill="white" stroke="black" stroke-width="1.5" />
+    <path d="M1450 110 L1480 140 H1450 Z" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="145" y="137" font-size="17" font-weight="bold">POST /oauth/{provider}/start protection</text>
+    <text x="145" y="162" font-size="16">Exact configured Origin · X-OAuth-Bridge: 1 · application/json with empty {} body (≤8 KiB) · then per-IP one-minute fixed-window limit.</text>
+    <path d="M560 192 V222 H585" fill="none" stroke="black" stroke-width="1.5" stroke-dasharray="8 7" />
+
+    <rect x="40" y="220" width="260" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="440" y="220" width="240" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="840" y="220" width="260" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="1240" y="220" width="280" height="62" fill="white" stroke="black" stroke-width="2" />
+    <text x="170" y="245" text-anchor="middle" font-size="16">«external»</text>
+    <text x="170" y="270" text-anchor="middle" font-size="21" font-weight="bold">Browser / frontend</text>
+    <text x="560" y="245" text-anchor="middle" font-size="16">«component»</text>
+    <text x="560" y="270" text-anchor="middle" font-size="21" font-weight="bold" fill="#1856a6">mediator.Server</text>
+    <text x="970" y="245" text-anchor="middle" font-size="16">«component»</text>
+    <text x="970" y="270" text-anchor="middle" font-size="21" font-weight="bold" fill="#18713a">session.Store</text>
+    <text x="1380" y="245" text-anchor="middle" font-size="16">«external»</text>
+    <text x="1380" y="270" text-anchor="middle" font-size="21" font-weight="bold" fill="#7435a0">Authorization server</text>
+
+    <path d="M170 315 H560" fill="none" stroke="black" stroke-width="2" marker-end="url(#start-sync)" />
+    <text x="365" y="305" text-anchor="middle" font-size="18">POST /oauth/{provider}/start · {}</text>
+
+    <rect x="600" y="310" width="350" height="196" fill="white" stroke="black" stroke-width="1.5" />
+    <path d="M920 310 L950 340 H920 Z" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="618" y="336" font-size="17">Generate random 32-byte state +</text>
+    <text x="618" y="361" font-size="17">PKCE verifier; derive S256 challenge.</text>
+    <text x="618" y="388" font-size="17">Build URL BEFORE store mutation:</text>
+    <text x="618" y="413" font-size="16">client_id, redirect_uri,</text>
+    <text x="618" y="438" font-size="16">response_type=code</text>
+    <text x="618" y="463" font-size="16">state + code_challenge (method=S256)</text>
+    <text x="618" y="488" font-size="16">scope if configured</text>
+    <path d="M560 382 H600" fill="none" stroke="black" stroke-width="1.5" stroke-dasharray="8 7" />
+
+    <path d="M560 545 H970" fill="none" stroke="black" stroke-width="2" marker-end="url(#start-sync)" />
+    <rect x="600" y="511" width="330" height="27" fill="white" />
+    <text x="765" y="531" text-anchor="middle" font-size="18">BeginAuth(cookie ID, PendingAuth)</text>
+
+    <path d="M970 610 H560" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#start-reply)" />
+    <rect x="620" y="576" width="290" height="27" fill="white" />
+    <text x="765" y="596" text-anchor="middle" font-size="18">BrowserSession metadata</text>
+    <rect x="475" y="615" width="580" height="28" fill="white" />
+    <text x="765" y="635" text-anchor="middle" font-size="17">Reuse/create session · replace pending · keep absolute deadline.</text>
+
+    <path d="M560 700 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#start-reply)" />
+    <rect x="205" y="666" width="320" height="26" fill="white" />
+    <text x="365" y="685" text-anchor="middle" font-size="17">HTTP 200 JSON auth URL + Set-Cookie</text>
+
+    <path d="M170 790 H1380" fill="none" stroke="black" stroke-width="2" marker-end="url(#start-async)" />
+    <rect x="300" y="755" width="950" height="27" fill="white" />
+    <text x="775" y="775" text-anchor="middle" font-size="18">Browser navigates to returned URL for consent · state + S256 challenge; verifier and client secret are not in URL</text>
+
+    <path d="M1380 875 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#start-reply)" />
+    <rect x="440" y="840" width="680" height="27" fill="white" />
+    <text x="780" y="860" text-anchor="middle" font-size="18">Redirect to configured callback with code + state, or an authorization error</text>
+
+    <rect x="270" y="925" width="1060" height="132" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="800" y="960" text-anchor="middle" font-size="18" font-weight="bold">Start does not issue a server redirect.</text>
+    <text x="800" y="986" text-anchor="middle" font-size="18">Frontend navigates using the JSON URL. If URL construction fails, the prior pending attempt remains intact.</text>
+    <text x="800" y="1018" text-anchor="middle" font-size="16">Cookie: __Host-oauth_bridge · Secure · HttpOnly · SameSite=Lax · Path=/ · expiry = session deadline.</text>
+    <text x="800" y="1100" text-anchor="middle" font-size="17">PKCE verifier and provider client secret stay on the backend; only the derived challenge is sent to the authorization endpoint.</text>
+  </g>
+</svg>

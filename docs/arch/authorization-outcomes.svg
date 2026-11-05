@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1450" role="img" aria-labelledby="outcomes-title outcomes-desc">
+  <title id="outcomes-title">Authorization attempt and connection outcomes</title>
+  <desc id="outcomes-desc">A UML state-machine view of pending authorization, atomic consumption, provider exchange, and guarded completion. Invalid callbacks leave the attempt pending; after valid consumption, failures never restore it. The existing connection stays until a successful transaction replaces it and rotates the cookie.</desc>
+  <defs>
+    <marker id="outcomes-transition" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+  </defs>
+  <rect width="2000" height="1450" fill="white" />
+  <g font-family="DejaVu Sans, sans-serif" fill="black">
+    <text x="1000" y="48" text-anchor="middle" font-size="31" font-weight="bold">Authorization and session rotation: outcomes</text>
+    <text x="1000" y="82" text-anchor="middle" font-size="18">UML state machine · transitions are labeled with guards and effects · black connectors carry the flow</text>
+
+    <rect x="60" y="112" width="900" height="100" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="85" y="145" font-size="18" font-weight="bold" fill="#18713a">Existing connection (if any)</text>
+    <text x="85" y="178" font-size="17">Stays during this callback; it changes only if CompleteAuth commits.</text>
+    <text x="85" y="200" font-size="16">Concurrent logout or refresh may change it independently.</text>
+    <rect x="1040" y="112" width="900" height="100" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="1065" y="145" font-size="18" font-weight="bold" fill="#b36313">Pending slot and attempted replacement</text>
+    <text x="1065" y="178" font-size="17">One slot per session; newer start replaces it. An older callback may fail; no ordering check.</text>
+
+    <!-- Transitions are drawn before the state nodes. -->
+    <path d="M110 375 H250" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M420 300 V265 H560 V300" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M620 375 H820" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M1190 375 H1490" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M1005 450 V570" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M1190 645 H1490" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M1005 720 V860" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M820 945 H520" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M1220 945 H1490" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+    <path d="M1020 1030 V1150" fill="none" stroke="black" stroke-width="2" marker-end="url(#outcomes-transition)" />
+
+    <circle cx="110" cy="375" r="12" fill="black" />
+
+    <rect x="250" y="300" width="370" height="150" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="435" y="340" text-anchor="middle" font-size="23" font-weight="bold" fill="#18713a">Pending</text>
+    <text x="275" y="380" font-size="18">PendingAuth row exists</text>
+    <text x="275" y="416" font-size="18">One slot for this session</text>
+
+    <rect x="820" y="300" width="370" height="150" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="1005" y="340" text-anchor="middle" font-size="23" font-weight="bold" fill="#18713a">Consumed</text>
+    <text x="845" y="380" font-size="18">DELETE committed</text>
+    <text x="845" y="416" font-size="18">verifier + AuthHandle returned</text>
+
+    <rect x="1490" y="300" width="410" height="150" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="1695" y="338" text-anchor="middle" font-size="22" font-weight="bold" fill="#a12d2d">Rejected after consume</text>
+    <text x="1515" y="378" font-size="17">Denial or missing code → 400</text>
+    <text x="1515" y="411" font-size="17">Attempt stays gone; old connection stays.</text>
+
+    <rect x="820" y="570" width="370" height="150" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="1005" y="610" text-anchor="middle" font-size="23" font-weight="bold" fill="#b36313">Provider exchange</text>
+    <text x="845" y="650" font-size="18">Provider request outside SQL tx</text>
+    <text x="845" y="686" font-size="18">Successful response held by mediator</text>
+
+    <rect x="1490" y="570" width="410" height="150" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="1695" y="608" text-anchor="middle" font-size="22" font-weight="bold" fill="#a12d2d">Exchange / validation fails</text>
+    <text x="1515" y="648" font-size="17">502/504; skip CompleteAuth</text>
+    <text x="1515" y="675" font-size="17">Prior same-provider connection</text>
+    <text x="1515" y="702" font-size="17">stays unless concurrent changes.</text>
+
+    <rect x="820" y="860" width="400" height="170" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="1020" y="902" text-anchor="middle" font-size="23" font-weight="bold" fill="#1856a6">CompleteAuth transaction</text>
+    <text x="845" y="942" font-size="17">Guard original cookie + active session</text>
+    <text x="845" y="976" font-size="17">and matching provider; commit together.</text>
+
+    <rect x="100" y="860" width="420" height="170" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="310" y="900" text-anchor="middle" font-size="22" font-weight="bold" fill="#a12d2d">Persistence failure</text>
+    <text x="123" y="940" font-size="17">Transaction rolls back: old cookie and</text>
+    <text x="123" y="974" font-size="17">connection unchanged; pending not restored,</text>
+    <text x="123" y="1008" font-size="17">unless another session change occurred.</text>
+
+    <rect x="1490" y="860" width="410" height="170" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="1695" y="900" text-anchor="middle" font-size="22" font-weight="bold" fill="#a12d2d">Guard rejects completion</text>
+    <text x="1515" y="940" font-size="17">Logout, expiry, or later cookie rotation</text>
+    <text x="1515" y="974" font-size="17">during exchange: no callback write.</text>
+
+    <rect x="820" y="1150" width="400" height="170" rx="18" ry="18" fill="white" stroke="black" stroke-width="2" />
+    <text x="1020" y="1190" text-anchor="middle" font-size="23" font-weight="bold" fill="#18713a">Complete</text>
+    <text x="845" y="1230" font-size="17">New cookie; old cookie is invalid.</text>
+    <text x="845" y="1264" font-size="17">Replace this provider; keep others.</text>
+    <text x="845" y="1298" font-size="17">Keep deadline; 303 sends no tokens.</text>
+
+    <rect x="60" y="222" width="560" height="31" fill="white" />
+    <text x="340" y="244" text-anchor="middle" font-size="16">Invalid cookie/session/provider/state or pending &gt;10 min: no delete</text>
+    <rect x="650" y="222" width="700" height="58" fill="white" />
+    <text x="1000" y="244" text-anchor="middle" font-size="16">Valid match: active session/cookie + provider + state, created within 10 min</text>
+    <text x="1000" y="267" text-anchor="middle" font-size="16">Atomic DELETE before exchange; one concurrent callback wins.</text>
+    <rect x="1205" y="335" width="275" height="29" fill="white" />
+    <text x="1342" y="356" text-anchor="middle" font-size="16">error or code missing</text>
+    <rect x="1020" y="500" width="280" height="29" fill="white" />
+    <text x="1160" y="521" text-anchor="middle" font-size="16">valid code + no denial</text>
+    <rect x="1205" y="605" width="275" height="29" fill="white" />
+    <text x="1342" y="626" text-anchor="middle" font-size="16">provider error / bad response</text>
+    <rect x="1020" y="764" width="300" height="29" fill="white" />
+    <text x="1170" y="785" text-anchor="middle" font-size="16">validated connection candidate</text>
+    <rect x="550" y="908" width="260" height="29" fill="white" />
+    <text x="680" y="929" text-anchor="middle" font-size="16">transaction error</text>
+    <rect x="1225" y="908" width="260" height="29" fill="white" />
+    <text x="1355" y="929" text-anchor="middle" font-size="16">session/cookie guard fails</text>
+    <rect x="1030" y="1064" width="320" height="29" fill="white" />
+    <text x="1190" y="1085" text-anchor="middle" font-size="16">guard passes + transaction commits</text>
+
+    <rect x="105" y="1350" width="1790" height="55" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="1000" y="1385" text-anchor="middle" font-size="17">Only a matching ConsumeAuth has one winner; a consumed attempt is never restored, even when exchange or completion fails.</text>
+  </g>
+</svg>

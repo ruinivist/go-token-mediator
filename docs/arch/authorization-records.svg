@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1220" role="img" aria-labelledby="records-title records-desc">
+  <title id="records-title">Authorization session records and values</title>
+  <desc id="records-desc">A UML class and record view separating SQLite rows from detached API values and the opaque AuthHandle. The stable session key is distinct from the rotating cookie ID. Each session has at most one pending authorization and may have several provider connections, with one per provider.</desc>
+  <defs>
+    <marker id="records-dependency" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+  </defs>
+  <rect width="1800" height="1220" fill="white" />
+  <g font-family="DejaVu Sans, sans-serif" fill="black">
+    <text x="900" y="48" text-anchor="middle" font-size="31" font-weight="bold">Authorization: records and API values</text>
+    <text x="900" y="82" text-anchor="middle" font-size="18">
+      <tspan fill="#1856a6">Blue: service</tspan><tspan> · </tspan>
+      <tspan fill="#18713a">Green: persisted data</tspan><tspan> · </tspan>
+      <tspan fill="#7435a0">Purple: API values / opaque handle</tspan>
+    </text>
+
+    <rect x="555" y="130" width="1195" height="550" fill="none" stroke="#555" stroke-width="1.7" stroke-dasharray="9 7" />
+    <rect x="570" y="113" width="245" height="30" fill="white" />
+    <text x="580" y="135" font-size="18" font-weight="bold">Persisted SQLite rows</text>
+
+    <rect x="40" y="185" width="470" height="380" fill="white" stroke="black" stroke-width="2" />
+    <path d="M40 240 H510" fill="none" stroke="black" stroke-width="2" />
+    <text x="275" y="220" text-anchor="middle" font-size="25" font-weight="bold" fill="#1856a6">session.Store</text>
+    <text x="62" y="285" font-size="17">+ BeginAuth(cookie, PendingAuth):</text>
+    <text x="84" y="309" font-size="17">BrowserSession</text>
+    <text x="62" y="345" font-size="17">+ ConsumeAuth(cookie, provider, state):</text>
+    <text x="84" y="369" font-size="17">verifier + AuthHandle</text>
+    <text x="62" y="405" font-size="17">+ CompleteAuth(AuthHandle, Connection):</text>
+    <text x="84" y="429" font-size="17">BrowserSession</text>
+    <text x="62" y="465" font-size="17">+ LoadConnection(cookie, provider):</text>
+    <text x="84" y="489" font-size="17">Connection · provider HTTP calls stay outside</text>
+
+    <path d="M510 390 H640" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#records-dependency)" />
+    <text x="600" y="350" text-anchor="middle" font-size="15">reads /</text>
+    <text x="600" y="370" text-anchor="middle" font-size="15">writes</text>
+
+    <rect x="640" y="205" width="390" height="225" fill="white" stroke="black" stroke-width="2" />
+    <path d="M640 258 H1030" fill="none" stroke="black" stroke-width="2" />
+    <text x="835" y="239" text-anchor="middle" font-size="23" font-weight="bold" fill="#18713a">sessions row</text>
+    <text x="662" y="294" font-size="19">id: int64 · stable session key</text>
+    <text x="662" y="333" font-size="19">cookie: unique ID · rotates</text>
+    <text x="662" y="372" font-size="19">expires_at: absolute deadline</text>
+    <text x="662" y="408" font-size="17">Rotation preserves id and deadline.</text>
+
+    <rect x="1120" y="165" width="560" height="220" fill="white" stroke="black" stroke-width="2" />
+    <path d="M1120 218 H1680" fill="none" stroke="black" stroke-width="2" />
+    <text x="1400" y="199" text-anchor="middle" font-size="23" font-weight="bold" fill="#18713a">pending_auth row</text>
+    <text x="1142" y="254" font-size="18">session_id: PK/FK, provider, state, verifier</text>
+    <text x="1142" y="290" font-size="18">created_at · authorization age ≤ 10 min</text>
+    <text x="1142" y="340" font-size="17">One row per session; valid consume deletes it.</text>
+
+    <rect x="1120" y="455" width="560" height="205" fill="white" stroke="black" stroke-width="2" />
+    <path d="M1120 508 H1680" fill="none" stroke="black" stroke-width="2" />
+    <text x="1400" y="489" text-anchor="middle" font-size="23" font-weight="bold" fill="#18713a">connections row</text>
+    <text x="1142" y="544" font-size="18">id, provider, access_token, refresh_token, scopes</text>
+    <text x="1142" y="580" font-size="18">expires_at, refresh_expires_at, revision, refreshing</text>
+    <text x="1142" y="628" font-size="17">Unique (session_id, provider) · credentials persisted</text>
+
+    <path d="M1030 320 H1120" fill="none" stroke="black" stroke-width="2" />
+    <text x="1036" y="310" font-size="16">1</text>
+    <text x="1070" y="310" font-size="16">0..1</text>
+
+    <path d="M1030 380 H1070 V558 H1120" fill="none" stroke="black" stroke-width="2" />
+    <text x="1040" y="405" font-size="16">1</text>
+    <text x="1080" y="550" font-size="16">0..*</text>
+
+    <text x="900" y="735" text-anchor="middle" font-size="18" font-weight="bold">Detached API values · copies and inputs, separate from SQLite rows</text>
+
+    <rect x="55" y="775" width="390" height="270" fill="white" stroke="black" stroke-width="2" />
+    <path d="M55 827 H445" fill="none" stroke="black" stroke-width="2" />
+    <text x="250" y="809" text-anchor="middle" font-size="23" font-weight="bold" fill="#7435a0">BrowserSession</text>
+    <text x="77" y="864" font-size="18">ID: ID · cookie value</text>
+    <text x="77" y="901" font-size="18">ExpiresAt: time.Time</text>
+    <text x="77" y="954" font-size="17">Returned by BeginAuth / CompleteAuth.</text>
+    <text x="77" y="987" font-size="17">Database row key stays stable.</text>
+
+    <rect x="480" y="775" width="390" height="270" fill="white" stroke="black" stroke-width="2" />
+    <path d="M480 827 H870" fill="none" stroke="black" stroke-width="2" />
+    <text x="675" y="809" text-anchor="middle" font-size="23" font-weight="bold" fill="#7435a0">PendingAuth</text>
+    <text x="502" y="864" font-size="18">Provider: string</text>
+    <text x="502" y="901" font-size="18">State: string</text>
+    <text x="502" y="938" font-size="18">PKCEVerifier: string</text>
+    <text x="502" y="987" font-size="17">BeginAuth input; persisted as a row.</text>
+
+    <rect x="905" y="775" width="390" height="270" fill="white" stroke="black" stroke-width="2" />
+    <path d="M905 827 H1295" fill="none" stroke="black" stroke-width="2" />
+    <text x="1100" y="809" text-anchor="middle" font-size="23" font-weight="bold" fill="#7435a0">AuthHandle</text>
+    <text x="927" y="858" font-size="17">− session: int64 · stable key</text>
+    <text x="927" y="892" font-size="17">− cookie: ID · original cookie</text>
+    <text x="927" y="926" font-size="17">− provider: string</text>
+    <text x="927" y="978" font-size="16">Opaque: only ConsumeAuth creates</text>
+    <text x="927" y="1005" font-size="16">a usable handle for CompleteAuth.</text>
+
+    <rect x="1330" y="775" width="415" height="320" fill="white" stroke="black" stroke-width="2" />
+    <path d="M1330 827 H1745" fill="none" stroke="black" stroke-width="2" />
+    <text x="1537" y="809" text-anchor="middle" font-size="23" font-weight="bold" fill="#7435a0">Connection</text>
+    <text x="1352" y="864" font-size="17">Provider, AccessToken</text>
+    <text x="1352" y="898" font-size="17">RefreshToken, Scopes</text>
+    <text x="1352" y="932" font-size="17">ExpiresAt, RefreshExpiresAt</text>
+    <text x="1352" y="982" font-size="17">Detached bearer credentials:</text>
+    <text x="1352" y="1011" font-size="17">LoadConnection returns a copy;</text>
+    <text x="1352" y="1040" font-size="17">CompleteAuth saves a replacement.</text>
+
+    <text x="900" y="1155" text-anchor="middle" font-size="17">Session keys link the rows; API references do not imply lifecycle composition.</text>
+  </g>
+</svg>

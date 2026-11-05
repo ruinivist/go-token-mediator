@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1990" role="img" aria-labelledby="callback-title callback-desc">
+  <title id="callback-title">Authorization callback: consume before exchange</title>
+  <desc id="callback-desc">A sequence diagram: ConsumeAuth commits before provider exchange, so invalid attempts stop without a call and denial or missing-code responses spend a valid attempt. A validated provider response reaches CompleteAuth. Only a committed completion sets the cookie and redirects; guard and storage failures do neither.</desc>
+  <defs>
+    <marker id="callback-sync" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13 Z" fill="black" />
+    </marker>
+    <marker id="callback-reply" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+  </defs>
+  <rect width="1700" height="1990" fill="white" />
+  <g font-family="DejaVu Sans, sans-serif" fill="black">
+    <text x="850" y="46" text-anchor="middle" font-size="31" font-weight="bold">Authorization callback: consume before exchange</text>
+    <text x="850" y="80" text-anchor="middle" font-size="18">Sequence · solid filled arrow: synchronous call · dashed open arrow: reply · time runs downward</text>
+
+    <rect x="75" y="108" width="1550" height="82" fill="white" stroke="black" stroke-width="1.5" />
+    <path d="M1595 108 L1625 138 H1595 Z" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="100" y="136" font-size="17" font-weight="bold">GET /oauth/{provider}/callback · Cache-Control: no-store · Referrer-Policy: no-referrer</text>
+    <text x="100" y="164" font-size="17">Order: per-IP rate limit → configured provider lookup → required cookie → ConsumeAuth. These checks precede any pending-row deletion.</text>
+
+    <path d="M170 278 V1780 M560 278 V1780 M970 278 V1780 M1380 278 V1780" fill="none" stroke="#555" stroke-width="1.5" stroke-dasharray="8 7" />
+
+    <rect x="70" y="210" width="200" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="440" y="210" width="240" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="840" y="210" width="260" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="1210" y="210" width="340" height="62" fill="white" stroke="black" stroke-width="2" />
+    <text x="170" y="235" text-anchor="middle" font-size="16">«external»</text>
+    <text x="170" y="260" text-anchor="middle" font-size="21" font-weight="bold">Browser</text>
+    <text x="560" y="235" text-anchor="middle" font-size="16">«component»</text>
+    <text x="560" y="260" text-anchor="middle" font-size="21" font-weight="bold" fill="#1856a6">mediator.Server</text>
+    <text x="970" y="235" text-anchor="middle" font-size="16">«component»</text>
+    <text x="970" y="260" text-anchor="middle" font-size="21" font-weight="bold" fill="#18713a">session.Store</text>
+    <text x="1380" y="235" text-anchor="middle" font-size="16">«external»</text>
+    <text x="1380" y="260" text-anchor="middle" font-size="21" font-weight="bold" fill="#7435a0">Provider token endpoint</text>
+
+    <path d="M170 315 H560" fill="none" stroke="black" stroke-width="2" marker-end="url(#callback-sync)" />
+    <text x="365" y="302" text-anchor="middle" font-size="18">GET callback · cookie + code/state or error</text>
+
+    <path d="M560 405 H970" fill="none" stroke="black" stroke-width="2" marker-end="url(#callback-sync)" />
+    <text x="765" y="393" text-anchor="middle" font-size="18">ConsumeAuth(cookie, provider, state)</text>
+
+    <path d="M970 470 H560" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="765" y="458" text-anchor="middle" font-size="18">error OR (verifier + AuthHandle)</text>
+
+    <rect x="600" y="485" width="350" height="92" fill="white" stroke="black" stroke-width="1.5" />
+    <path d="M920 485 L950 515 H920 Z" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="615" y="507" font-size="15">Match session/cookie, provider + state,</text>
+    <text x="615" y="526" font-size="15">created in last 10 min. Commit DELETE</text>
+    <text x="615" y="545" font-size="15">before exchange; mismatch leaves pending.</text>
+    <text x="615" y="564" font-size="15">Concurrent matching callbacks: one winner.</text>
+
+    <!-- This enclosing alt keeps every exchange and completion inside its valid-code operand. -->
+    <rect x="55" y="595" width="1590" height="1210" fill="none" stroke="black" stroke-width="2" />
+    <path d="M55 635 H1645 M55 760 H1645 M55 930 H1645" fill="none" stroke="black" stroke-width="2" />
+    <rect x="55" y="595" width="62" height="40" fill="white" stroke="black" stroke-width="2" />
+    <text x="86" y="622" text-anchor="middle" font-size="18" font-weight="bold">alt</text>
+
+    <text x="220" y="622" font-size="16">[no matching active attempt]</text>
+    <path d="M560 700 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="365" y="685" text-anchor="middle" font-size="18" fill="#a12d2d">400 · no consume / no exchange</text>
+
+    <text x="220" y="790" font-size="16">[committed consume]</text>
+    <text x="220" y="813" font-size="16">[provider denial or code missing]</text>
+    <path d="M560 875 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="365" y="860" text-anchor="middle" font-size="18" fill="#a12d2d">400 · attempt stays consumed</text>
+
+    <text x="220" y="960" font-size="16">[committed consume; code present]</text>
+    <text x="220" y="983" font-size="16">[no provider error]</text>
+    <text x="600" y="1012" font-size="16">Form POST: authorization_code + code</text>
+    <text x="600" y="1032" font-size="16">verifier, redirect_uri, client credentials</text>
+    <path d="M560 1050 H1380" fill="none" stroke="black" stroke-width="2" marker-end="url(#callback-sync)" />
+    <text x="600" y="1075" font-size="16">Request context · 15 s HTTP timeout.</text>
+    <text x="600" y="1097" font-size="16">Provider call stays outside SQL transaction.</text>
+
+    <!-- Failed exchanges terminate; only a validated result proceeds to persistence. -->
+    <rect x="55" y="1120" width="1590" height="680" fill="none" stroke="black" stroke-width="2" />
+    <path d="M55 1160 H1645 M55 1250 H1645" fill="none" stroke="black" stroke-width="2" />
+    <rect x="55" y="1120" width="62" height="40" fill="white" stroke="black" stroke-width="2" />
+    <text x="86" y="1147" text-anchor="middle" font-size="18" font-weight="bold">alt</text>
+
+    <text x="990" y="1147" font-size="16">[exchange or response invalid]</text>
+    <path d="M560 1210 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="365" y="1195" text-anchor="middle" font-size="18" fill="#a12d2d">502/504 · skip CompleteAuth</text>
+
+    <text x="220" y="1280" font-size="16">[validated provider response]</text>
+    <path d="M1380 1320 H560" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="765" y="1307" text-anchor="middle" font-size="18">Validated bearer-token response</text>
+    <path d="M560 1415 H970" fill="none" stroke="black" stroke-width="2" marker-end="url(#callback-sync)" />
+    <text x="765" y="1403" text-anchor="middle" font-size="18">CompleteAuth(handle, Connection)</text>
+    <path d="M970 1470 H560" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="765" y="1458" text-anchor="middle" font-size="18">BrowserSession or error</text>
+
+    <rect x="990" y="1368" width="360" height="130" fill="white" stroke="black" stroke-width="1.5" />
+    <path d="M1320 1368 L1350 1398 H1320 Z" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="1005" y="1390" font-size="14">Guard active session + original cookie</text>
+    <text x="1005" y="1409" font-size="14">and matching provider; commit atomically.</text>
+    <text x="1005" y="1428" font-size="14">Rotate cookie; replace this provider;</text>
+    <text x="1005" y="1447" font-size="14">preserve others and absolute deadline.</text>
+    <text x="1005" y="1466" font-size="14">Failure rolls back cookie and connection changes.</text>
+    <text x="1005" y="1485" font-size="14">Persist independently of browser cancel · max 5 s.</text>
+
+    <!-- Cookie and redirect are conditional on commit; both failure classes stop without either. -->
+    <rect x="55" y="1510" width="1590" height="280" fill="none" stroke="black" stroke-width="2" />
+    <path d="M55 1550 H1645 M55 1630 H1645 M55 1710 H1645" fill="none" stroke="black" stroke-width="2" />
+    <rect x="55" y="1510" width="62" height="40" fill="white" stroke="black" stroke-width="2" />
+    <text x="86" y="1537" text-anchor="middle" font-size="18" font-weight="bold">alt</text>
+
+    <text x="220" y="1537" font-size="16">[CompleteAuth commits]</text>
+    <path d="M560 1585 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="365" y="1571" text-anchor="middle" font-size="17">Set-Cookie + 303 · no tokens</text>
+
+    <text x="220" y="1617" font-size="16">[guard rejects / invalid session]</text>
+    <path d="M560 1665 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="365" y="1652" text-anchor="middle" font-size="17">400 · no cookie or redirect</text>
+
+    <text x="220" y="1697" font-size="16">[storage failure]</text>
+    <path d="M560 1745 H170" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#callback-reply)" />
+    <text x="365" y="1732" text-anchor="middle" font-size="17">503 · no cookie or redirect</text>
+
+    <rect x="205" y="1840" width="1290" height="82" fill="white" stroke="black" stroke-width="1.5" />
+    <text x="850" y="1871" text-anchor="middle" font-size="17" fill="#a12d2d">Exchange errors are 502/504 before CompleteAuth; the prior connection stays unless concurrent changes alter it.</text>
+    <text x="850" y="1900" text-anchor="middle" font-size="17">Logout, expiry, later cookie rotation, and other concurrent session changes remain authoritative.</text>
+  </g>
+</svg>
