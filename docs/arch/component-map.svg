@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-labelledby="component-title component-desc">
+  <title id="component-title">Token mediator component map</title>
+  <desc id="component-desc">A logical component view of one Go monolith. Main wires and supervises mediator.Server and session.Store. The mediator uses the store and provider OAuth token endpoint; the store persists to a SQLite file. The external browser calls provider resource APIs directly with access tokens.</desc>
+  <defs>
+    <marker id="component-dependency" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 2 L12 7 L2 12" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+  </defs>
+  <rect width="1600" height="1000" fill="white" />
+  <g font-family="DejaVu Sans, sans-serif" fill="black">
+    <text x="800" y="46" text-anchor="middle" font-size="31" font-weight="bold">Token mediator: component map</text>
+    <text x="800" y="80" text-anchor="middle" font-size="18">UML component dependencies · dashed open arrows mean “uses,” not call order</text>
+    <text x="800" y="150" text-anchor="middle" font-size="18" fill="#1856a6">Browser navigation and direct resource API calls use the provider, outside the Go process</text>
+
+    <path d="M170 320 V165 H1430 V300" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#component-dependency)" />
+
+    <rect x="340" y="190" width="880" height="710" fill="white" stroke="black" stroke-width="2" />
+    <rect x="430" y="174" width="700" height="34" fill="white" />
+    <text x="780" y="198" text-anchor="middle" font-size="20" font-weight="bold">One Go monolith · internal packages, not microservices</text>
+
+    <rect x="45" y="320" width="255" height="220" fill="white" stroke="black" stroke-width="2" />
+    <path d="M45 376 H300" fill="none" stroke="black" stroke-width="2" />
+    <text x="172" y="347" text-anchor="middle" font-size="16">«external»</text>
+    <text x="172" y="369" text-anchor="middle" font-size="23" font-weight="bold">Browser / frontend</text>
+    <text x="62" y="410" font-size="18">Frontend not supplied</text>
+    <text x="62" y="445" font-size="18">Opaque session cookie</text>
+    <text x="62" y="480" font-size="18">Access token for APIs</text>
+
+    <rect x="1300" y="300" width="255" height="270" fill="white" stroke="black" stroke-width="2" />
+    <path d="M1300 356 H1555" fill="none" stroke="black" stroke-width="2" />
+    <text x="1427" y="327" text-anchor="middle" font-size="16">«external»</text>
+    <text x="1427" y="349" text-anchor="middle" font-size="23" font-weight="bold" fill="#7435a0">OAuth provider</text>
+    <text x="1318" y="393" font-size="18">Authorization endpoint</text>
+    <text x="1318" y="428" font-size="18">Token endpoint</text>
+    <text x="1318" y="463" font-size="18">Resource APIs</text>
+    <text x="1318" y="520" font-size="16">External service</text>
+
+    <rect x="390" y="270" width="300" height="180" fill="white" stroke="black" stroke-width="2" />
+    <path d="M390 326 H690" fill="none" stroke="black" stroke-width="2" />
+    <text x="540" y="297" text-anchor="middle" font-size="16">«component»</text>
+    <text x="540" y="319" text-anchor="middle" font-size="23" font-weight="bold" fill="#1856a6">main</text>
+    <text x="408" y="360" font-size="18">Loads config; opens store</text>
+    <text x="408" y="394" font-size="18">Wires and runs HTTP server</text>
+    <text x="408" y="428" font-size="18">Cleanup; drain, then close</text>
+
+    <rect x="760" y="270" width="400" height="215" fill="white" stroke="black" stroke-width="2" />
+    <path d="M760 326 H1160" fill="none" stroke="black" stroke-width="2" />
+    <text x="960" y="297" text-anchor="middle" font-size="16">«component»</text>
+    <text x="960" y="319" text-anchor="middle" font-size="23" font-weight="bold" fill="#1856a6">mediator.Server</text>
+    <text x="780" y="360" font-size="18">HTTP routes + browser protections</text>
+    <text x="780" y="394" font-size="18">OAuth start, callback, token, logout</text>
+    <text x="780" y="428" font-size="18">Keeps secrets + OAuth policy</text>
+    <text x="780" y="462" font-size="18">No provider resource proxy</text>
+
+    <rect x="610" y="560" width="550" height="190" fill="white" stroke="black" stroke-width="2" />
+    <path d="M610 616 H1160" fill="none" stroke="black" stroke-width="2" />
+    <text x="885" y="587" text-anchor="middle" font-size="16">«component»</text>
+    <text x="885" y="609" text-anchor="middle" font-size="23" font-weight="bold" fill="#18713a">session.Store</text>
+    <text x="630" y="650" font-size="18">Atomic session and OAuth transactions</text>
+    <text x="630" y="684" font-size="18">Pending attempts + provider connections</text>
+    <text x="630" y="718" font-size="18">Refresh coordinator holds no credentials</text>
+
+    <rect x="700" y="785" width="370" height="100" fill="white" stroke="black" stroke-width="2" />
+    <path d="M700 850 H1070" fill="none" stroke="black" stroke-width="2" />
+    <text x="885" y="813" text-anchor="middle" font-size="16">«data store»</text>
+    <text x="885" y="839" text-anchor="middle" font-size="22" font-weight="bold" fill="#18713a">SQLite file</text>
+    <text x="885" y="876" text-anchor="middle" font-size="16">sessions · pending auth · connections</text>
+
+    <path d="M300 430 H325 V248 H960 V270" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#component-dependency)" />
+    <text x="535" y="238" text-anchor="middle" font-size="17">HTTP API: start / callback / token / logout</text>
+
+    <path d="M690 360 H760" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#component-dependency)" />
+    <text x="725" y="347" text-anchor="middle" font-size="16">wires</text>
+
+    <path d="M540 450 V510 H640 V560" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#component-dependency)" />
+    <text x="435" y="496" text-anchor="middle" font-size="17">Open · cleanup · close</text>
+
+    <path d="M960 485 V560" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#component-dependency)" />
+    <text x="1055" y="535" text-anchor="middle" font-size="17">session API</text>
+
+    <path d="M885 750 V785" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#component-dependency)" />
+    <text x="980" y="777" text-anchor="middle" font-size="16">SQL</text>
+
+    <path d="M1160 390 H1300" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#component-dependency)" />
+    <text x="1230" y="258" text-anchor="middle" font-size="17">Code exchange / refresh</text>
+  </g>
+</svg>

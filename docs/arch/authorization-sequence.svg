@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1330" role="img" aria-labelledby="authorization-title authorization-desc">
+  <title id="authorization-title">Authorization sequence: consume before exchange</title>
+  <desc id="authorization-desc">The browser starts authorization, visits provider consent, and returns to the mediator. The mediator consumes pending authorization before exchanging the code. It then saves the connection and rotates the session cookie atomically before redirecting to the frontend.</desc>
+  <defs>
+    <marker id="authorization-sync" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13 Z" fill="black" />
+    </marker>
+    <marker id="authorization-async" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+    <marker id="authorization-reply" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2 1 L12 7 L2 13" fill="none" stroke="black" stroke-width="1.7" />
+    </marker>
+  </defs>
+  <rect width="1500" height="1330" fill="white" />
+  <g font-family="DejaVu Sans, sans-serif" fill="black">
+    <text x="750" y="45" text-anchor="middle" font-size="31" font-weight="bold">Authorization: consume before exchange</text>
+    <text x="750" y="80" text-anchor="middle" font-size="18">Time runs downward · solid filled: synchronous call · solid open: asynchronous · dashed open: reply</text>
+
+    <rect x="80" y="115" width="190" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="410" y="115" width="220" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="790" y="115" width="240" height="62" fill="white" stroke="black" stroke-width="2" />
+    <rect x="1210" y="115" width="220" height="62" fill="white" stroke="black" stroke-width="2" />
+    <text x="175" y="140" text-anchor="middle" font-size="16">«external»</text>
+    <text x="175" y="164" text-anchor="middle" font-size="22" font-weight="bold">Browser</text>
+    <text x="520" y="140" text-anchor="middle" font-size="16">«component»</text>
+    <text x="520" y="164" text-anchor="middle" font-size="22" font-weight="bold" fill="#1856a6">mediator.Server</text>
+    <text x="910" y="140" text-anchor="middle" font-size="16">«component»</text>
+    <text x="910" y="164" text-anchor="middle" font-size="22" font-weight="bold" fill="#18713a">session.Store</text>
+    <text x="1320" y="140" text-anchor="middle" font-size="16">«external»</text>
+    <text x="1320" y="164" text-anchor="middle" font-size="22" font-weight="bold" fill="#7435a0">Provider</text>
+
+    <path d="M175 177 V1230 M520 177 V1230 M910 177 V1230 M1320 177 V1230" fill="none" stroke="#555" stroke-width="1.5" stroke-dasharray="8 7" />
+
+    <path d="M175 225 H520" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-sync)" />
+    <text x="347" y="214" text-anchor="middle" font-size="18">POST /oauth/{provider}/start</text>
+
+    <path d="M520 285 H910" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-sync)" />
+    <text x="715" y="274" text-anchor="middle" font-size="18">BeginAuth(state, verifier)</text>
+
+    <path d="M910 335 H520" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
+    <text x="715" y="324" text-anchor="middle" font-size="18">BrowserSession: cookie ID + deadline</text>
+
+    <path d="M520 385 H175" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
+    <rect x="168" y="356" width="358" height="24" fill="white" />
+    <text x="347" y="374" text-anchor="middle" font-size="18">authorization URL + protected cookie</text>
+
+    <path d="M175 450 H1320" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-sync)" />
+    <rect x="500" y="421" width="490" height="24" fill="white" />
+    <text x="747" y="439" text-anchor="middle" font-size="18">Navigate to consent with state + S256 challenge</text>
+
+    <path d="M1320 510 H175" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
+    <rect x="570" y="481" width="360" height="24" fill="white" />
+    <text x="747" y="499" text-anchor="middle" font-size="18">Redirect with code + state (or denial)</text>
+
+    <path d="M175 570 H520" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-sync)" />
+    <text x="347" y="544" text-anchor="middle" font-size="18">
+      <tspan x="347">GET /oauth/{provider}/callback</tspan>
+      <tspan x="347" dy="20">(cookie, code, state)</tspan>
+    </text>
+
+    <path d="M520 630 H910" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-sync)" />
+    <text x="715" y="619" text-anchor="middle" font-size="18">ConsumeAuth(cookie, provider, state)</text>
+
+    <path d="M910 690 H520" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
+    <rect x="510" y="661" width="410" height="24" fill="white" />
+    <text x="715" y="679" text-anchor="middle" font-size="18">Reject OR verifier + consumed AuthHandle</text>
+
+    <rect x="65" y="730" width="1370" height="490" fill="none" stroke="black" stroke-width="2" />
+    <path d="M65 770 H1435" fill="none" stroke="black" stroke-width="2" />
+    <rect x="65" y="730" width="62" height="40" fill="white" stroke="black" stroke-width="2" />
+    <text x="96" y="757" text-anchor="middle" font-size="18" font-weight="bold">alt</text>
+
+    <rect x="145" y="782" width="540" height="23" fill="white" />
+    <text x="150" y="800" font-size="17">[invalid cookie, state, provider, or expired/replayed attempt]</text>
+    <path d="M520 830 H175" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
+    <text x="347" y="819" text-anchor="middle" font-size="18" fill="#a12d2d">400 · stop before provider exchange</text>
+
+    <path d="M65 850 H1435" fill="none" stroke="black" stroke-width="2" />
+    <rect x="145" y="864" width="330" height="23" fill="white" />
+    <text x="150" y="882" font-size="17">[valid attempt and code present]</text>
+    <rect x="755" y="864" width="480" height="23" fill="white" />
+    <text x="760" y="882" font-size="16" fill="#a12d2d">Denial or missing code is rejected after consumption.</text>
+
+    <path d="M520 930 H1320" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-sync)" />
+    <rect x="730" y="901" width="380" height="24" fill="white" />
+    <text x="920" y="919" text-anchor="middle" font-size="18">Exchange code + verifier + client secret</text>
+
+    <path d="M1320 980 H520" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
+    <rect x="795" y="951" width="250" height="24" fill="white" />
+    <text x="920" y="969" text-anchor="middle" font-size="18">Validated provider tokens</text>
+
+    <path d="M520 1030 H910" fill="none" stroke="black" stroke-width="2" marker-end="url(#authorization-sync)" />
+    <text x="715" y="1019" text-anchor="middle" font-size="18">CompleteAuth(handle, connection)</text>
+
+    <path d="M910 1080 H520" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
+    <rect x="495" y="1051" width="440" height="24" fill="white" />
+    <text x="715" y="1069" text-anchor="middle" font-size="18">Atomic save + rotated cookie; original deadline</text>
+
+    <path d="M520 1150 H175" fill="none" stroke="black" stroke-width="2" stroke-dasharray="9 7" marker-end="url(#authorization-reply)" />
+    <rect x="168" y="1121" width="358" height="24" fill="white" />
+    <text x="347" y="1139" text-anchor="middle" font-size="18">Set-Cookie + 303 frontend completion</text>
+
+    <text x="750" y="1260" text-anchor="middle" font-size="17" fill="#a12d2d">Exchange or completion failure does not restore a consumed attempt; completion rejects logout, expiry, or prior cookie rotation.</text>
+  </g>
+</svg>
