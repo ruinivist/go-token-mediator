@@ -1,0 +1,153 @@
+:root {
+  color-scheme: light;
+  font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #202833;
+  background: #f1f3f5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: #f1f3f5;
+}
+
+button, a { font: inherit; }
+a { color: #1457a6; }
+
+.page {
+  width: min(1160px, calc(100% - 32px));
+  margin: 20px auto;
+}
+
+.surface {
+  overflow: hidden;
+  border: 1px solid #d7dce1;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.topbar {
+  min-height: 54px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #dfe3e7;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mediator-url {
+  color: #596575;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+h2, p { margin-top: 0; }
+h2 { margin-bottom: 8px; font-size: 15px; font-weight: 600; }
+
+.account, .cookie-info, .requests { padding: 16px 18px; }
+.account, .cookie-info { border-bottom: 1px solid #dfe3e7; }
+.account-details { margin: 0 0 10px; overflow-wrap: anywhere; }
+.account-name { font-weight: 600; }
+.account-login { color: #596575; }
+.status { margin: 0; color: #414b57; overflow-wrap: anywhere; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #dfe3e7;
+}
+
+.button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 11px;
+  border: 1px solid #b9c1ca;
+  border-radius: 4px;
+  background: #fff;
+  color: #26313d;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+}
+
+.button:hover:not(:disabled) { background: #f4f6f8; }
+.button:focus-visible, a:focus-visible { outline: 2px solid #1457a6; outline-offset: 2px; }
+.button:disabled { cursor: wait; opacity: .6; }
+.button-primary { border-color: #1457a6; background: #1457a6; color: #fff; }
+.button-primary:hover:not(:disabled) { border-color: #0d4387; background: #0d4387; color: #fff; }
+.button-danger { color: #8a3030; }
+.button-continue { margin-top: 12px; border-color: #1457a6; color: #1457a6; }
+
+.cookie-info dl { margin: 0; }
+.cookie-info dl > div { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0; }
+.cookie-info dt { min-width: 165px; color: #596575; }
+.cookie-info dd { margin: 0; }
+.cookie-info p { margin: 8px 0 0; color: #596575; }
+code { font: .95em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.section-heading { padding-bottom: 10px; border-bottom: 1px solid #dfe3e7; }
+.section-heading h2 { margin: 0; }
+.output-list { display: grid; gap: 10px; padding-top: 12px; }
+.empty-output { margin: 0; color: #596575; }
+
+.log-entry { min-width: 0; padding: 12px 0; border-bottom: 1px solid #dfe3e7; }
+.log-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.log-title {
+  min-width: 0;
+  margin: 0;
+  font: 600 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+.log-meta { flex: 0 0 auto; margin: 0; color: #596575; font-size: 12px; }
+.log-section { margin-top: 8px; }
+.log-section h3 { margin: 0 0 3px; color: #596575; font-size: 12px; font-weight: 600; }
+.log-section pre, .log-details pre {
+  max-height: 300px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #dfe3e7;
+  border-radius: 3px;
+  background: #f7f8f9;
+  color: #202833;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-details { margin-top: 8px; }
+.log-details summary { color: #596575; cursor: pointer; font-size: 12px; }
+.log-details pre { margin-top: 5px; }
+.log-error h3 { color: #8a3030; }
+
+.callback-panel { max-width: 620px; margin: 8vh auto; padding: 22px; }
+.callback-panel h1 { margin: 0 0 10px; font-size: 18px; font-weight: 600; }
+.callback-panel p:last-child { margin: 18px 0 0; }
+
+[hidden] { display: none !important; }
+
+@media (max-width: 600px) {
+  .page { width: calc(100% - 20px); margin: 10px auto; }
+  .topbar, .account, .cookie-info, .requests { padding-right: 12px; padding-left: 12px; }
+  .actions { padding-right: 12px; padding-left: 12px; }
+  .log-heading { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .cookie-info dt { min-width: 140px; }
+}

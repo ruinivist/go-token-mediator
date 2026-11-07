@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>GitHub OAuth test</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/app.mjs"></script>
+  </head>
+  <body>
+    <main class="page">
+      <div class="surface">
+        <header class="topbar">
+          <h1>GitHub OAuth test</h1>
+          <span class="mediator-url">http://localhost:8080</span>
+        </header>
+
+        <nav class="actions" aria-label="OAuth actions">
+          <button class="button button-primary" id="connect-button" type="button">Connect GitHub</button>
+          <button class="button" id="token-button" type="button">Get token</button>
+          <button class="button" id="profile-button" type="button">Fetch profile</button>
+          <button class="button button-danger" id="logout-button" type="button">Logout</button>
+          <button class="button" id="clear-button" type="button">Clear output</button>
+        </nav>
+
+        <section class="account" aria-label="Account">
+          <p class="account-details"><strong>Account:</strong> <span class="account-name" id="account-name">Not connected</span> <span class="account-login" id="account-login">Connect to load your public profile.</span></p>
+          <p class="status" id="status" role="status" aria-live="polite">Ready. Requests will appear below.</p>
+        </section>
+
+        <section class="cookie-info" aria-labelledby="cookie-heading">
+          <h2 id="cookie-heading">Session cookie</h2>
+          <dl>
+            <div><dt>Cookie</dt><dd><code>__Host-oauth_bridge</code></dd></div>
+            <div><dt>Configured protections</dt><dd>HttpOnly · Secure · SameSite=Lax · Path=/</dd></div>
+            <div><dt>Visibility</dt><dd>Browser-managed</dd></div>
+          </dl>
+          <p>JavaScript cannot read this cookie or confirm its presence. These are configured protections, not a report of whether a cookie is present. Inspect DevTools → Application → Cookies → localhost.</p>
+        </section>
+
+        <section class="requests" aria-labelledby="requests-heading">
+          <header class="section-heading">
+            <h2 id="requests-heading">Requests</h2>
+          </header>
+          <div class="output-list" id="output" aria-live="polite" aria-relevant="additions text">
+            <p class="empty-output">Requests and raw response bodies will appear here. Nothing is saved to browser storage.</p>
+          </div>
+          <a class="button button-continue" id="continue-link" href="#" hidden>Continue to GitHub</a>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
