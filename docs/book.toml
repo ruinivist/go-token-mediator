@@ -1,0 +1,9 @@
+[book]
+title = "go-token-mediator"
+src = "."
+
+[build]
+build-dir = "../build/book"
+
+[output.html]
+default-theme = "ayu"
