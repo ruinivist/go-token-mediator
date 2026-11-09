@@ -4,6 +4,8 @@ Lightest token mediator
 
 Start with the [prerequisites](docs/user-guide/prerequisites.md) for setup and deployment. For the code structure, see the [developer guide](docs/arch/overview.md).
 
+For the documentation map, see [docs/README.md](docs/README.md).
+
 The backend keeps client secrets and refresh tokens private. The frontend obtains
 access tokens from the mediator and calls provider APIs directly.
 

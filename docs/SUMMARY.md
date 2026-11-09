@@ -1,6 +1,6 @@
 # Summary
 
-[Start here](index.md)
+[Documentation map](README.md)
 
 # User guide
 
@@ -15,4 +15,8 @@
 
 - [Architecture overview](arch/overview.md)
 - [Authorization flow](arch/authorization.md)
-- [Decisions to skip](Decisions%20to%20skip.md)
+- [Decisions to skip](decisions.md)
+
+# Historical notes
+
+- [Devlog](archive/devlog.md)

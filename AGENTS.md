@@ -2,7 +2,7 @@
 
 This is a minimal Go learning implementation of a token-mediating backend. Prioritize correctness, readable code, and clear ownership over feature completeness. Keep the implementation small enough to understand end to end.
 
-Intentional limits belong in [Decisions to skip](docs/Decisions%20to%20skip.md). Read that file before proposing additions; do not turn those decisions into an automatic feature backlog.
+Intentional limits belong in [Decisions to skip](docs/decisions.md). Read that file before proposing additions; do not turn those decisions into an automatic feature backlog.
 
 ## Architecture
 

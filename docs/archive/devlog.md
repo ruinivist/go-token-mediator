@@ -1,5 +1,7 @@
 # Devlog
 
+> Historical notes from earlier implementation work. Descriptions of in-memory sessions and unfinished refresh behavior are not current guidance; see the [architecture overview](../arch/overview.md) and [intentional limits](../decisions.md).
+
 ## general idea
 
 1. **`POST /oauth/github/start`**: Go creates the session, sets the `HttpOnly` cookie in the browser, and returns GitHub's login URL.
