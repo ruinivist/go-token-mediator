@@ -1,0 +1,25 @@
+services:
+  mediator:
+    image: "${MEDIATOR_IMAGE:?Set MEDIATOR_IMAGE to a versioned image or digest}"
+    network_mode: host
+    user: "65532:65532"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes:
+      - type: bind
+        source: /etc/token-mediator/config.json
+        target: /etc/token-mediator/config.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: sessions
+        target: /var/lib/token-mediator
+
+volumes:
+  sessions:
