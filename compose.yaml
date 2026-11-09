@@ -1,6 +1,6 @@
 services:
   mediator:
-    image: "${MEDIATOR_IMAGE:?Set MEDIATOR_IMAGE to a versioned image or digest}"
+    image: "${MEDIATOR_IMAGE:?Set MEDIATOR_IMAGE to an image reference}"
     network_mode: host
     user: "65532:65532"
     read_only: true
@@ -12,7 +12,7 @@ services:
     stop_grace_period: 30s
     volumes:
       - type: bind
-        source: /etc/token-mediator/config.json
+        source: ./config.json
         target: /etc/token-mediator/config.json
         read_only: true
         bind:

@@ -4,7 +4,12 @@
 
 # User guide
 
-- [Running the backend](usage.md)
+- [Prerequisites](user-guide/prerequisites.md)
+- [Register OAuth apps](user-guide/oauth-apps.md)
+- [Configure the mediator](user-guide/configuration.md)
+- [Deploy the service](user-guide/deployment.md)
+- [Connect the frontend](user-guide/frontend.md)
+- [Operate the service](user-guide/operations.md)
 
 # Developer guide
 

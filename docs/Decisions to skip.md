@@ -10,3 +10,4 @@
 - OAuth requests have one limit per IP in one-minute windows. A client can use its full allowance just before a reset and again just after it. People sharing an IP share the limit. There are no separate limits per user or route, or controls to spread requests evenly over time.
 - The rate limiter tracks a limited number of IPs. Once it's full, requests from new IPs are rejected until the next window. Restarting clears the counts, and separate server processes don't share them.
 - Go listens on loopback behind Caddy on the same machine and reads one client IP from Caddy's forwarding header. There is no support for proxy chains or remote proxies, and no configuration for trusted address ranges.
+- Container deployment targets one Linux host with rootful Docker and Caddy. Rootless Docker, Docker Desktop, remote Docker hosts, and multiple mediator replicas are unsupported; host networking and single-process SQLite ownership are deliberate.
